@@ -1,15 +1,19 @@
+use iced::widget::{button, column, container, row, scrollable, text, text_input};
 use iced::Element;
-use iced::widget::{button, column, container, row, scrollable, text_input};
 
 #[derive(Default)]
 struct State {
-    content: String,
+    gata: String,
+    gatunummer: String,
+    postnummer: String,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    ContentChanged(String),
-    ButtonPressed,
+    GataChanged(String),
+    GatunummerChanged(String),
+    PostnummerChanged(String),
+    AddAddressButtonPressed,
 }
 
 pub fn main() -> iced::Result {
@@ -19,14 +23,16 @@ pub fn main() -> iced::Result {
 fn view(state: &State) -> Element<'_, Message> {
     column![
         container(row![
-            text_input("Lägg till adress...", &state.content).on_input(Message::ContentChanged),
-            button("+").on_press(Message::ButtonPressed),
+            text_input("Gata", &state.gata).on_input(Message::GataChanged),
+            text_input("Gatunummer", &state.gatunummer).on_input(Message::GatunummerChanged),
+            text_input("Postnummer", &state.postnummer).on_input(Message::PostnummerChanged),
+            button("+").on_press(Message::AddAddressButtonPressed),
         ])
         .padding(10)
         .style(container::rounded_box),
         container(scrollable(column![
             //Parse stored addresses from JSON
-            "test123",
+            text(&state.gata)
         ]))
         .padding(10)
         .style(container::rounded_box)
@@ -36,11 +42,17 @@ fn view(state: &State) -> Element<'_, Message> {
 
 fn update(state: &mut State, message: Message) {
     match message {
-        Message::ContentChanged(content) => {
-            state.content = content;
+        Message::GataChanged(gata) => {
+            state.gata = gata;
         }
-        Message::ButtonPressed => {
-            let _content = state.content.clone(); //Add to JSON list and write
+        Message::GatunummerChanged(gatunummer) => {
+            state.gatunummer = gatunummer;
+        }
+        Message::PostnummerChanged(postnummer) => {
+            state.postnummer = postnummer;
+        }
+        Message::AddAddressButtonPressed => {
+            //let _content = state.content.clone(); //Add to JSON list and write
         }
     }
 }

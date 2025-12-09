@@ -1,9 +1,10 @@
 use geojson::FeatureReader;
-use nestify::nest;
-use serde::{Deserialize, Serialize};
-use std::fs::{File, read};
-use std::io::{BufReader, PipeReader, Read};
-
+//use nestify::nest;
+//use serde::{Deserialize, Serialize};
+//use geojson::de::from_feature;
+use std::fs::read;
+use std::io::BufReader;
+/*
 nest! {
     #[derive(Debug, Deserialize)]
     struct AdressDirty {
@@ -35,8 +36,9 @@ struct AdressClean {
     gata: String,
     gatunummer: String, //usize?
 }
-
+*/
 fn main() {
+    /*
     let feature_collection_string = r#"{
      "type": "FeatureCollection",
      "features": [
@@ -60,44 +62,51 @@ fn main() {
 }"#
     .as_bytes();
     let io_reader = std::io::BufReader::new(feature_collection_string);
-    let file = read("adresser.json").unwrap();
+     */
+    let file = read("adresser.geojson").expect("failed to read file");
     let reader = BufReader::new(file.as_slice());
     let feature_reader = FeatureReader::from_reader(reader);
     for feature in feature_reader.features() {
-        let feature = feature.expect("valid geojson feature");
-
-        let c = feature.property("coordinates").unwrap().as_array().unwrap();
-
-        let postnummer = feature
-            .property("postnr")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .to_string();
-        let adress = feature
-            .property("beladress")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .to_string();
-        let gata = feature
-            .property("adressomr")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .to_string();
-        let gatunummer = feature
-            .property("adressplat")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .to_string();
-
-        let coordinates = c.as_slice();
-        println!("{:?}", coordinates);
-        println!("{}", postnummer);
-        println!("{}", adress);
-        println!("{}", gata);
-        println!("{}", gatunummer);
+        let feature = feature.expect("failed to iterate over valid geojson feature");
+        //println!("{:?}", feature);
+        if feature.geometry.is_some()
+            && feature.contains_property("postnr")
+            && feature.contains_property("beladress")
+            && feature.contains_property("adressomr")
+            && feature.contains_property("adressplat")
+        {
+            let postnummer = feature
+                .property("postnr")
+                .expect("failed to get postnummer property")
+                .as_str()//Some str conv not working
+                .expect("failed to turn postnummer to &str")
+                .to_string();
+            let adress = feature
+                .property("beladress")
+                .expect("failed to get adress property")
+                .as_str()
+                .expect("failed to turn adress to &str")
+                .to_string();
+            let gata = feature
+                .property("adressomr")
+                .expect("failed to get gata property")
+                .as_str()
+                .expect("failed to turn gata to &str")
+                .to_string();
+            let gatunummer = feature
+                .property("adressplat")
+                .expect("failed to get gatunummer property")
+                .as_str()
+                .expect("failed to turn gatunummer to &str")
+                .to_string();
+            let c = feature
+                .geometry.unwrap().value; //Extract coords
+            //let coordinates = c;
+            println!("{:?}", c);
+            println!("{}", postnummer);
+            println!("{}", adress);
+            println!("{}", gata);
+            println!("{}", gatunummer);
+        }
     }
 }

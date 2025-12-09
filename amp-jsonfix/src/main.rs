@@ -1,7 +1,6 @@
-use geojson::FeatureReader;
+use geojson::{FeatureReader, JsonValue, Value};
 //use nestify::nest;
-//use serde::{Deserialize, Serialize};
-//use geojson::de::from_feature;
+use serde::{Serialize};
 use std::fs::read;
 use std::io::BufReader;
 /*
@@ -27,16 +26,16 @@ nest! {
         },
     }
 }
-
-#[derive(Serialize)]
+*/
+#[derive(Serialize, Debug)]
 struct AdressClean {
-    coordinates: [f64; 2],
+    coordinates: Value,
     postnummer: String,
     adress: String,
     gata: String,
     gatunummer: String, //usize?
 }
-*/
+
 fn main() {
     /*
     let feature_collection_string = r#"{
@@ -75,12 +74,18 @@ fn main() {
             && feature.contains_property("adressomr")
             && feature.contains_property("adressplat")
         {
-            let postnummer = feature
-                .property("postnr")
-                .expect("failed to get postnummer property")
-                .as_str()//Some str conv not working
-                .expect("failed to turn postnummer to &str")
-                .to_string();
+            let mut postnummer = "".to_string();
+            match feature.property("postnr") {
+                Some(feature) if feature.clone() == JsonValue::Null => {}
+                Some(feature) => {
+                    postnummer = feature
+                        .as_str() //Some str conv not working
+                        .expect("failed to turn postnummer to &str")
+                        .to_string();
+                }
+                None => {}
+            }
+
             let adress = feature
                 .property("beladress")
                 .expect("failed to get adress property")
@@ -99,14 +104,23 @@ fn main() {
                 .as_str()
                 .expect("failed to turn gatunummer to &str")
                 .to_string();
-            let c = feature
-                .geometry.unwrap().value; //Extract coords
-            //let coordinates = c;
-            println!("{:?}", c);
+            let coordinates = feature
+                .geometry.expect("failed to extract geometry").value; //Extract coords
+            /*
+            println!("{:?}", coordinates);
             println!("{}", postnummer);
             println!("{}", adress);
             println!("{}", gata);
             println!("{}", gatunummer);
+             */
+            let adr: AdressClean = AdressClean {
+                coordinates,
+                postnummer,
+                adress,
+                gata,
+                gatunummer,
+            };
+            println!("{:?}", adr);
         }
     }
 }

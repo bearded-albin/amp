@@ -57,8 +57,6 @@ pub struct MiljoeDataClean {
 }
 
 fn main() {
-    //println!("{:?}", read_adresser());
-    //println!("{:?}", read_miljoeparkering());
     write_adresser(read_adresser());
     write_miljoeparkering(read_miljoeparkering());
 }
@@ -116,7 +114,6 @@ fn read_adresser(/*Path?*/) -> Vec<AdressClean> {
                 gata,
                 gatunummer,
             };
-            //println!("{:?}", adr);
             adr_vec.push(adr);
         }
     }
@@ -170,7 +167,6 @@ fn read_miljoeparkering() -> Vec<MiljoeDataClean> {
             let start = c_init.iter().next().expect("failed to extract start");
             let end = c_init.iter().next().expect("failed to extract end");
             let coordinates = [[start.x(), start.y()], [end.x(), end.y()]];
-            println!("coordinates: {:?}", coordinates);
             let miladr = MiljoeDataClean {
                 coordinates,
                 //extra_info,
@@ -178,7 +174,6 @@ fn read_miljoeparkering() -> Vec<MiljoeDataClean> {
                 tid,
                 dag,
             };
-            //println!("{:?}", miladr);
             miladr_vec.push(miladr);
         }
     }

@@ -1,0 +1,244 @@
+use rayon::prelude::*;
+use std::f64;
+use std::fs::File;
+use arrow::array::{Float64Array, StringArray, UInt16Array, UInt8Array};
+use arrow::record_batch::RecordBatch;
+use parquet::arrow::arrow_reader::{ParquetRecordBatchReaderBuilder};
+
+#[derive(Debug)]
+pub struct AdressClean {
+    pub coordinates: [f64; 2],
+    pub postnummer: u16,
+    pub adress: String,
+    pub gata: String,
+    pub gatunummer: String,
+}
+
+#[derive(Debug)]
+pub struct MiljoeDataClean {
+    pub coordinates: [[f64; 2]; 2],
+    pub info: String,
+    pub tid: String,
+    pub dag: u8,
+}
+
+fn main() {
+    let lines = read_miljoeparkering().expect("failed to read file");
+    let points = read_adresser().expect("failed to read file");
+
+    let results = find_closest_lines(&points, &lines);
+
+    for (i, res) in results.iter().enumerate() {
+        match res {
+            Some((line_idx, dist)) => {
+                println!(
+                    "Point {} is closest to line {} ({}), distance {:.3}",
+                    i, line_idx, lines[*line_idx].info, dist
+                );
+            }
+            None => println!("Point {} has no closest line", i),
+        }
+    }
+}
+
+
+/// Squared distance from point to line segment
+fn distance_point_to_line_squared(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
+    let ab = [b[0] - a[0], b[1] - a[1]];
+    let ap = [p[0] - a[0], p[1] - a[1]];
+    let ab_len_sq = ab[0] * ab[0] + ab[1] * ab[1];
+
+    if ab_len_sq == 0.0 {
+        return ap[0] * ap[0] + ap[1] * ap[1];
+    }
+
+    let t = ((ap[0] * ab[0] + ap[1] * ab[1]) / ab_len_sq).clamp(0.0, 1.0);
+    let closest = [a[0] + t * ab[0], a[1] + t * ab[1]];
+    let dx = p[0] - closest[0];
+    let dy = p[1] - closest[1];
+    dx * dx + dy * dy
+}
+
+/// Find the closest line index + distance for each point in parallel
+pub fn find_closest_lines(
+    points: &[AdressClean],
+    lines: &[MiljoeDataClean],
+) -> Vec<Option<(usize, f64)>> {
+    points
+        .par_iter()
+        .map(|point| {
+            lines
+                .iter()
+                .enumerate()
+                .map(|(i, line)| {
+                    (
+                        i,
+                        distance_point_to_line_squared(
+                            point.coordinates,
+                            line.coordinates[0],
+                            line.coordinates[1],
+                        ),
+                    )
+                })
+                .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                .map(|(i, dist_sq)| (i, dist_sq.sqrt()))
+        })
+        .collect()
+}
+
+
+
+pub fn read_adresser() -> anyhow::Result<Vec<AdressClean>> {
+    // Open the Parquet file
+    let file = File::open("adresser.parquet")
+        .expect("Failed to open adresser.parquet");
+
+    // Build a reader that yields Arrow RecordBatches
+    let builder =
+        ParquetRecordBatchReaderBuilder::try_new(file)
+            .expect("Failed to create Parquet reader builder");
+
+    let mut reader = builder
+        .build()
+        .expect("Failed to build Parquet record batch reader");
+
+    let mut result = Vec::new();
+
+    while let Some(batch) = reader.next().transpose()? {
+        let batch: RecordBatch = batch;
+
+        // Look up each column by name and downcast to specific Arrow array type
+        let lat = batch
+            .column(batch.schema().index_of("lat")?)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .expect("latitude column missing or wrong type");
+
+        let lon = batch
+            .column(batch.schema().index_of("lon")?)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .expect("longitude column missing or wrong type");
+
+        let postnummer = batch
+            .column(batch.schema().index_of("postnummer")?)
+            .as_any()
+            .downcast_ref::<UInt16Array>()
+            .expect("postnummer column missing or wrong type");
+
+        let adress = batch
+            .column(batch.schema().index_of("adress")?)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("adress column missing or wrong type");
+
+        let gata = batch
+            .column(batch.schema().index_of("gata")?)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("gata column missing or wrong type");
+
+        let gatunummer = batch
+            .column(batch.schema().index_of("gatunummer")?)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("gatunummer column missing or wrong type");
+
+        // Convert each row in the batch into our struct
+        for i in 0..batch.num_rows() {
+            let entry = AdressClean {
+                coordinates: [
+                    lat.value(i),
+                    lon.value(i),
+                ],
+                postnummer: postnummer.value(i),
+                adress: adress.value(i).to_string(),
+                gata: gata.value(i).to_string(),
+                gatunummer: gatunummer.value(i).to_string(),
+            };
+            result.push(entry);
+        }
+    }
+
+    Ok(result)
+}
+
+pub fn read_miljoeparkering() -> anyhow::Result<Vec<MiljoeDataClean>> {
+    // Open the Parquet file
+    let file = File::open("miljöparkering.parquet")
+        .expect("Failed to open miljöparkering.parquet");
+
+    // Build a Parquet reader
+    let builder =
+        ParquetRecordBatchReaderBuilder::try_new(file)
+            .expect("Failed to create Parquet reader builder");
+
+    let mut reader = builder
+        .build()
+        .expect("Failed to build Parquet record batch reader");
+
+    let mut result = Vec::new();
+
+    while let Some(batch) = reader.next().transpose()? {
+        let batch: RecordBatch = batch;
+
+        // Downcast each column to the correct type
+        let lat_start = batch
+            .column(batch.schema().index_of("lat_start")?)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .expect("lat_start column missing or wrong type");
+
+        let lon_start = batch
+            .column(batch.schema().index_of("lon_start")?)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .expect("lon_start column missing or wrong type");
+
+        let lat_end = batch
+            .column(batch.schema().index_of("lat_end")?)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .expect("lat_end column missing or wrong type");
+
+        let lon_end = batch
+            .column(batch.schema().index_of("lon_end")?)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .expect("lon_end column missing or wrong type");
+
+        let info = batch
+            .column(batch.schema().index_of("info")?)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("info column missing or wrong type");
+
+        let tid = batch
+            .column(batch.schema().index_of("tid")?)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("tid column missing or wrong type");
+
+        let dag = batch
+            .column(batch.schema().index_of("dag")?)
+            .as_any()
+            .downcast_ref::<UInt8Array>()
+            .expect("dag column missing or wrong type");
+
+        // Convert rows to MiljoeDataClean
+        for i in 0..batch.num_rows() {
+            let entry = MiljoeDataClean {
+                coordinates: [
+                    [lat_start.value(i), lon_start.value(i)],
+                    [lat_end.value(i), lon_end.value(i)],
+                ],
+                info: info.value(i).to_string(),
+                tid: tid.value(i).to_string(),
+                dag: dag.value(i),
+            };
+            result.push(entry);
+        }
+    }
+
+    Ok(result)
+}

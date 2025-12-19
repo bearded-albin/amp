@@ -7,10 +7,10 @@ use arrow::{
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
-use chrono::{Datelike, Local as ChronoLocal, NaiveDate, NaiveTime};
+use chrono::{Datelike, Duration, Local as ChronoLocal, NaiveDate, NaiveTime};
 use get_fields::GetFields;
 use iced::{
-    Element, Length,
+    Color, Element, Font, Length, Theme, theme,
     widget::space::horizontal,
     widget::{
         Column, button, checkbox, column, container, row, scrollable, space, text, text_input,
@@ -22,6 +22,13 @@ use parquet::{
     file::properties::{EnabledStatistics, WriterProperties},
 };
 use std::{collections::BTreeMap, f64, fs::File, path::Path, sync::Arc};
+
+const SCARLETFIRE: Color = Color::from_rgb(241. / 255., 46. / 255., 7. / 255.);
+const SNOW: Color = Color::from_rgb(247. / 255., 246. / 255., 244. / 255.);
+const ONYX: Color = Color::from_rgb(18. / 255., 19. / 255., 22. / 255.);
+const HARVESTGOLD: Color = Color::from_rgb(224. / 255., 157. / 255., 49. / 255.);
+const FORESTGREEN: Color = Color::from_rgb(26. / 255., 138. / 255., 56. / 255.);
+const FORESTMOSS: Color = Color::from_rgb(108. / 255., 150. / 255., 17. / 255.);
 
 #[derive(GetFields, Debug, Default)]
 struct AdressInfo {
@@ -68,7 +75,10 @@ struct LocalString {
 }
 
 pub fn main() -> iced::Result {
-    iced::run(Amp::update, Amp::view)
+    iced::application(Amp::default, Amp::update, Amp::view)
+        .theme(Amp::theme)
+        .default_font(Font::MONOSPACE)
+        .run()
 }
 
 struct Amp {
@@ -124,8 +134,104 @@ impl Default for Amp {
 }
 
 fn matches(local: &Local, info: &AdressInfo) -> bool {
-    //Improve this
+    //Better matching needed and fail response wanted
     local.adress == info.adress && local.postnummer == info.postnummer
+}
+
+fn add_one_month(date: NaiveDate) -> Option<NaiveDate> {
+    let mut year = date.year();
+    let mut month = date.month() + 1;
+
+    if month == 13 {
+        month = 1;
+        year += 1;
+    }
+
+    NaiveDate::from_ymd_opt(year, month, date.day())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum TimeBucket {
+    Now,
+    Within6Hours,
+    Within1Day,
+    Within1Month,
+    Invalid,
+}
+
+fn bucket_for(info: &AdressInfo) -> TimeBucket {
+    let remaining = match remaining_duration(info.dag, &info.tid) {
+        Some(d) => d,
+        None => return TimeBucket::Invalid,
+    };
+
+    // Treat everything ending within 6h as "Now"
+    if remaining <= Duration::hours(4) {
+        TimeBucket::Now
+    } else if remaining <= Duration::hours(6) {
+        TimeBucket::Within6Hours
+    } else if remaining <= Duration::days(1) {
+        TimeBucket::Within1Day
+    } else if remaining <= Duration::days(31) {
+        TimeBucket::Within1Month
+    } else {
+        TimeBucket::Invalid
+    }
+}
+
+fn remaining_duration(dag: u8, tid: &str) -> Option<Duration> {
+    let (_start, end) = parse_tid_interval(tid)?;
+
+    let now = ChronoLocal::now().naive_local();
+    let today = now.date();
+
+    let this_month_date = NaiveDate::from_ymd_opt(today.year(), today.month(), dag.into())?;
+
+    let this_end = this_month_date.and_time(end);
+
+    // Case 1: still upcoming this month
+    if this_end >= now {
+        return Some(this_end - now);
+    }
+
+    // Case 2: already passed → roll to next month
+    let next_month_date = add_one_month(this_month_date)?;
+    let next_end = next_month_date.and_time(end);
+
+    if next_end >= now {
+        Some(next_end - now)
+    } else {
+        None
+    }
+}
+
+fn render_bucket<'a>(
+    title: &'a str,
+    rows: &[(Duration, usize)],
+    locals: &'a [Local],
+    registry: &[AdressInfo],
+) -> Element<'a, Message> {
+    let content = rows.iter().map(|(_, idx)| {
+        let local = &locals[*idx];
+
+        let time_text = registry
+            .iter()
+            .find(|info| matches(local, info))
+            .and_then(|info| remaining_until_interval(info.dag, &info.tid))
+            .unwrap_or_else(|| ". . .".to_string());
+
+        row![
+            text(&local.adress).width(Length::Fill),
+            text(time_text).width(Length::Shrink),
+        ]
+        .spacing(20)
+        .into()
+    });
+
+    container(column![text(title).size(18), column(content).spacing(8),])
+        .padding(8)
+        .style(container::transparent)
+        .into()
 }
 
 fn parse_tid_interval(tid: &str) -> Option<(NaiveTime, NaiveTime)> {
@@ -148,27 +254,13 @@ fn parse_tid_interval(tid: &str) -> Option<(NaiveTime, NaiveTime)> {
 }
 
 fn remaining_until_interval(dag: u8, tid: &str) -> Option<String> {
-    let (start, end) = parse_tid_interval(tid)?;
+    let remaining = remaining_duration(dag, tid)?;
 
-    let today = ChronoLocal::now().date_naive();
-    let year = today.year();
-    let month = today.month();
+    let days = remaining.num_days();
+    let hours = remaining.num_hours() % 24;
+    let minutes = remaining.num_minutes() % 60;
 
-    // NaiveDate for the relevant day
-    let interval_date = NaiveDate::from_ymd_opt(year, month, dag.into())?;
-    let end_datetime = interval_date.and_time(end);
-
-    let now = ChronoLocal::now().naive_local();
-
-    if now < end_datetime {
-        let diff = end_datetime - now; // Duration
-        let days = diff.num_days();
-        let hours = diff.num_hours() % 24;
-        let minutes = diff.num_minutes() % 60;
-        Some(format!("{}d {:02}h {:02}m", days, hours, minutes))
-    } else {
-        Some("passed".to_string())
-    }
+    Some(format!("{}d {:02}h {:02}m", days, hours, minutes))
 }
 
 impl Amp {
@@ -200,8 +292,7 @@ impl Amp {
                         tid: new.tid,
                         dag: new.dag,
                     });
-                }
-                else {
+                } else {
                     self.local.push(Local {
                         active: new.active,
                         debug_closest_line_id: new.debug_closest_line_id,
@@ -220,7 +311,6 @@ impl Amp {
                         dag: new.dag,
                     });
                 }
-
 
                 self.local.sort_by_key(|l| l.postnummer);
 
@@ -292,7 +382,8 @@ impl Amp {
                         button("x")
                             .on_press(Message::RemoveAddressButtonPressed { index: i })
                             .width(Length::Fixed(30.))
-                            .height(Length::Fixed(30.)),
+                            .height(Length::Fixed(30.))
+                            .style(button::danger),
                     ],
                     space().height(Length::Fixed(5.)),
                 ]
@@ -300,28 +391,99 @@ impl Amp {
             },
         )));
 
-        let active_rows = self.local.iter().filter(|l| l.active).map(|local| {
-            let time_text = self
-                .registry
-                .iter()
-                .find(|info| matches(local, info))
-                .and_then(|info| remaining_until_interval(info.dag, &info.tid))
-                .unwrap_or_else(|| ". . .".to_string());
+        type BucketEntry = (Duration, usize); // (remaining, index into self.local)
 
-            row![
-                text(&local.adress).width(Length::Fill),
-                text(time_text).width(Length::Shrink),
-            ]
-            .spacing(20)
-            .into()
-        });
+        let mut buckets: BTreeMap<TimeBucket, Vec<BucketEntry>> = BTreeMap::new();
 
-        let active_panel = container(column![
-            text("Aktiva adresser").size(20),
-            column(active_rows).spacing(8),
-        ])
-        .padding(10)
-        .style(container::rounded_box);
+        for (idx, local) in self.local.iter().enumerate().filter(|(_, l)| l.active) {
+            let Some(info) = self.registry.iter().find(|info| matches(local, info)) else {
+                buckets
+                    .entry(TimeBucket::Invalid)
+                    .or_default()
+                    .push((Duration::MAX, idx));
+                continue;
+            };
+
+            if let Some(remaining) = remaining_duration(info.dag, &info.tid) {
+                let bucket = bucket_for(info);
+                buckets.entry(bucket).or_default().push((remaining, idx));
+            } else {
+                buckets
+                    .entry(TimeBucket::Invalid)
+                    .or_default()
+                    .push((Duration::MAX, idx));
+            }
+        }
+
+        for rows in buckets.values_mut() {
+            rows.sort_by_key(|(remaining, _)| *remaining);
+        }
+
+        let now_rows = buckets
+            .get(&TimeBucket::Now)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        let four_h_rows = buckets
+            .get(&TimeBucket::Within6Hours)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        let one_d_rows = buckets
+            .get(&TimeBucket::Within1Day)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        let one_m_rows = buckets
+            .get(&TimeBucket::Within1Month)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        let invalid_rows = buckets
+            .get(&TimeBucket::Invalid)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+
+        let active_panel: Column<Message> = column![
+            container(render_bucket(
+                //Not actually working atm lol
+                "Nu",
+                now_rows,
+                &self.local,
+                &self.registry,
+            ))
+            .padding(5)
+            .style(container::success),
+            container(render_bucket(
+                "Om mindre än 6h",
+                four_h_rows,
+                &self.local,
+                &self.registry,
+            ))
+            .padding(5)
+            .style(container::danger),
+            container(render_bucket(
+                "Inom 24h",
+                one_d_rows,
+                &self.local,
+                &self.registry,
+            ))
+            .padding(5)
+            .style(container::warning),
+            container(render_bucket(
+                "Inom 1 månad",
+                one_m_rows,
+                &self.local,
+                &self.registry,
+            ))
+            .padding(5)
+            .style(container::primary),
+            container(render_bucket(
+                "Ingen städning här",
+                invalid_rows,
+                &self.local,
+                &self.registry,
+            ))
+            .padding(5)
+            .style(container::dark),
+        ]
+        .into();
 
         container(column![
             container(column![
@@ -340,7 +502,22 @@ impl Amp {
         ])
         .into()
     }
+
+    fn theme(&self) -> Theme {
+        Theme::custom(
+            String::from("Custom"),
+            theme::Palette {
+                background: SNOW,
+                primary: FORESTMOSS,
+                text: ONYX,
+                success: FORESTGREEN,
+                warning: HARVESTGOLD,
+                danger: SCARLETFIRE,
+            },
+        )
+    }
 }
+
 /*
 #[derive(Debug, Clone)]
 enum Message {

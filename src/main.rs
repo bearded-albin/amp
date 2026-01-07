@@ -9,26 +9,26 @@ use arrow::{
 };
 use chrono::{Datelike, Duration, Local as ChronoLocal, NaiveDate, NaiveTime};
 use get_fields::GetFields;
-use iced::{
-    Color, Element, Font, Length, Theme, theme,
-    widget::space::horizontal,
-    widget::{
-        Column, button, checkbox, column, container, row, scrollable, space, text, text_input,
-    },
-};
 use parquet::{
     arrow::ArrowWriter,
     arrow::arrow_reader::ParquetRecordBatchReaderBuilder,
     file::properties::{EnabledStatistics, WriterProperties},
 };
 use std::{collections::BTreeMap, f64, fs::File, path::Path, sync::Arc};
-
-const SCARLETFIRE: Color = Color::from_rgb(241. / 255., 46. / 255., 7. / 255.);
-const SNOW: Color = Color::from_rgb(247. / 255., 246. / 255., 244. / 255.);
-const ONYX: Color = Color::from_rgb(18. / 255., 19. / 255., 22. / 255.);
-const HARVESTGOLD: Color = Color::from_rgb(224. / 255., 157. / 255., 49. / 255.);
-const FORESTGREEN: Color = Color::from_rgb(26. / 255., 138. / 255., 56. / 255.);
-const FORESTMOSS: Color = Color::from_rgb(108. / 255., 150. / 255., 17. / 255.);
+use iced::{
+    widget::rule,
+    Element,
+    Font,
+    Length,
+    Theme,
+    widget::space::horizontal,
+    widget::{
+        Column, button, checkbox, column, container, row, scrollable, space, text, text_input,
+    },
+    Bottom,
+    Subscription,
+    time::{Duration as IcedDuration, self}
+};
 
 #[derive(GetFields, Debug, Default)]
 struct AdressInfo {
@@ -76,6 +76,7 @@ struct LocalString {
 
 pub fn main() -> iced::Result {
     iced::application(Amp::default, Amp::update, Amp::view)
+        .subscription(Amp::subscription)
         .theme(Amp::theme)
         .default_font(Font::MONOSPACE)
         .run()
@@ -95,6 +96,7 @@ enum Message {
     AddAddressButtonPressed,
     RemoveAddressButtonPressed { index: usize },
     ToggleActive { index: usize, value: bool },
+    Tick
 }
 
 impl Default for Amp {
@@ -219,18 +221,20 @@ fn render_bucket<'a>(
             .find(|info| matches(local, info))
             .and_then(|info| remaining_until_interval(info.dag, &info.tid))
             .unwrap_or_else(|| ". . .".to_string());
-
-        row![
-            container(text(&local.adress)).padding(5).width(Length::Fill),
-            container(text(time_text)).padding(5).width(Length::Shrink).style(container::dark),
+        column![
+            row![
+                container(text(&local.adress).size(20)).padding(5).width(Length::Fill),
+                container(text(time_text).size(20)).padding(5).width(Length::Shrink).style(container::transparent),
+            ].align_y(Bottom),
+            rule::horizontal(2),
         ]
-        .spacing(20)
+        .spacing(0)
         .into()
     });
 
     container(column![
         container(column![
-            container(text(title).size(24)).padding(5).width(Length::Fill),
+            container(column![text(title).size(24), rule::horizontal(2)]).padding(5).width(Length::Fill),
             container(column(content).spacing(8)).padding(5).width(Length::Fill)
         ])
         .padding(5)
@@ -358,6 +362,7 @@ impl Amp {
                     self.input.postnummer = p;
                 }
             },
+            Message::Tick => (),
         }
     }
 
@@ -380,7 +385,7 @@ impl Amp {
             |(i, h)| {
                 column![
                     row![
-                        text(format!("{}, {}", h.adress.trim(), h.postnummer)),
+                        text(format!("{}, {}", h.adress.trim(), h.postnummer)).align_y(Bottom).size(20),
                         horizontal(),
                         checkbox(h.active)
                             .on_toggle(move |value| Message::ToggleActive { index: i, value })
@@ -392,7 +397,9 @@ impl Amp {
                             .height(Length::Fixed(30.))
                             .style(button::danger),
                     ],
-                    space().height(Length::Fixed(5.)),
+                    space().height(Length::Fixed(1.)),
+                    rule::horizontal(2),
+                    space().height(Length::Fixed(1.)),
                 ]
                 .into()
             },
@@ -501,27 +508,22 @@ impl Amp {
                     .padding(5)
                     .style(container::bordered_box),
             ])
-            .padding(10)
+            .padding(1)
             .style(container::rounded_box),
             container(scrollable(active_panel),)
-                .padding(10)
+                .padding(1)
                 .style(container::rounded_box),
         ]))
         .into()
     }
 
     fn theme(&self) -> Theme {
-        Theme::custom(
-            String::from("Custom"),
-            theme::Palette {
-                background: SNOW,
-                primary: FORESTMOSS,
-                text: ONYX,
-                success: FORESTGREEN,
-                warning: HARVESTGOLD,
-                danger: SCARLETFIRE,
-            },
-        )
+        Theme::TokyoNightLight
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        let tick = time::every(IcedDuration::new(30, 0));
+            Subscription::from(tick.map(move |_| Message::Tick))
     }
 }
 

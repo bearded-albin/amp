@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = "0.14.0"
+iced = { version = "0.14.0", features = ["tokio"] }
 get_fields = "0.1.0"
 arrow = "57.1.0"
 parquet = "57.1.0"

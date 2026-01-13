@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'com.example.amp'
-    compileSdk 35
+    compileSdk 34
     
     defaultConfig {
         applicationId "com.example.amp"
@@ -20,18 +20,23 @@ android {
             signingConfig signingConfigs.debug
         }
     }
-    
+
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_25
-        targetCompatibility JavaVersion.VERSION_25
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
-    
-    kotlinOptions {
-        jvmTarget = '25'
+
+    packagingOptions {
+        pickFirst 'kotlin/collections/jdk8/CollectionsJDK8Kt.class'
+        pickFirst 'kotlin/internal/jdk7/JDK7PlatformImplementations.class'
+        pickFirst 'kotlin/internal/jdk8/JDK8PlatformImplementations.class'
     }
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.7.0'
-    implementation 'androidx.core:core:1.13.1'
+    implementation('androidx.appcompat:appcompat:1.7.0') {
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+    }
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
 }

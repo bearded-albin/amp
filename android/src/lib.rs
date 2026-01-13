@@ -1,26 +1,53 @@
-mod notifications;
-mod gps;
-mod ffi;
+use jni::{
+    objects::{JClass, JString},
+    JNIEnv,
+    sys::{jint}
+};
+use lazy_static::lazy_static;
+use std::sync::Mutex;
+use amp_core::AppState;
 
-use jni::JNIEnv;
-use jni::objects::JClass;
-use jni::sys::jint;
-
-#[no_mangle]
-pub extern "C" fn Java_com_amp_MainActivity_initGeoService(
-    _env: JNIEnv,
-    _class: JClass,
-) -> jint {
-    0
+lazy_static! {
+    static ref APP_STATE: Mutex<AppState> = Mutex::new(AppState::new());
 }
 
 #[no_mangle]
-pub extern "C" fn Java_com_amp_MainActivity_getAddressFromGPS(
-    env: JNIEnv,
+pub extern "C" fn Java_com_amp_MainActivity_initApp(
+    _env: JNIEnv,
     _class: JClass,
-    _lat: f64,
-    _lon: f64,
-) -> jni::sys::jstring {
-    let output = env.new_string("Detected Address").unwrap();
-    output.into_inner()
+) -> jint {
+    APP_STATE.lock().unwrap().count() as i32
+}
+
+#[no_mangle]
+pub extern "C" fn Java_com_amp_MainActivity_addAddress(
+    mut env: JNIEnv,
+    _class: JClass,
+    address_ptr: JString,
+) -> jint {
+    match env.get_string(&address_ptr) {
+        Ok(address_java) => {
+            let address = address_java.to_string_lossy().to_string();
+            tracing::info!("Added address: {}", address);
+            0
+        }
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn Java_com_amp_MainActivity_getAddressCount(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jint {
+    APP_STATE.lock().unwrap().count() as i32
+}
+
+#[no_mangle]
+pub extern "C" fn Java_com_amp_MainActivity_clearAll(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jint {
+    APP_STATE.lock().unwrap().clear_all();
+    0
 }

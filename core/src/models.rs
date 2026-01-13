@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use std::str::FromStr;
+use rust_decimal::prelude::ToPrimitive;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct GpsCoordinate {
@@ -33,6 +34,19 @@ impl GpsCoordinate {
         lat <= Decimal::from_str_exact("55.65").unwrap() &&
         lon >= Decimal::from_str_exact("12.90").unwrap() &&
         lon <= Decimal::from_str_exact("13.10").unwrap()
+    }
+
+    pub fn distance_to(&self, other: &GpsCoordinate) -> f64 {
+        use std::f64::consts::PI;
+        let lat1 = self.latitude.to_f64().unwrap_or(0.0) * PI / 180.0;
+        let lat2 = other.latitude.to_f64().unwrap_or(0.0) * PI / 180.0;
+        let delta_lat = (other.latitude.to_f64().unwrap_or(0.0) - self.latitude.to_f64().unwrap_or(0.0)) * PI / 180.0;
+        let delta_lon = (other.longitude.to_f64().unwrap_or(0.0) - self.longitude.to_f64().unwrap_or(0.0)) * PI / 180.0;
+
+        let a = (delta_lat / 2.0).sin().powi(2)
+            + lat1.cos() * lat2.cos() * (delta_lon / 2.0).sin().powi(2);
+        let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
+        6371000.0 * c
     }
 }
 
@@ -77,10 +91,9 @@ impl AlertLevel {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HealthResponse {
-    pub status: String,
-    pub timestamp: DateTime<Utc>,
-    pub last_update: Option<DateTime<Utc>>,
-    pub data_points: usize,
-    pub version: String,
+#[derive(Clone)]
+pub struct StoredAddress {
+    pub address: String,
+    pub coordinate: GpsCoordinate,
+    pub added_at: DateTime<Utc>,
 }

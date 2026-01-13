@@ -1,4 +1,3 @@
-use crate::error::Result;
 use crate::models::GpsCoordinate;
 use std::collections::HashMap;
 use parking_lot::RwLock;
@@ -15,11 +14,11 @@ impl GeolocationService {
         }
     }
 
-    pub async fn get_address_from_gps(
+    pub fn get_address_from_gps(
         &self,
         coord: &GpsCoordinate,
         _language: &str,
-    ) -> Result<String> {
+    ) -> Result<String, String> {
         let cache_key = format!("{:.8},{:.8}", coord.latitude, coord.longitude);
 
         {
@@ -29,8 +28,8 @@ impl GeolocationService {
             }
         }
 
-        // Simulate geocoding
-        let address = format!("Street {}, Malmö", coord.latitude);
+        // For MVP: Return mock address
+        let address = format!("Street, Malmö");
 
         {
             let mut cache = self.cache.write();
@@ -38,6 +37,11 @@ impl GeolocationService {
         }
 
         Ok(address)
+    }
+
+    pub fn clear_cache(&self) {
+        let mut cache = self.cache.write();
+        cache.clear();
     }
 }
 

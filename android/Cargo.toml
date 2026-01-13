@@ -1,19 +1,20 @@
 [package]
 name = "amp-android"
 version.workspace = true
-edition.workspace = true
+edition = "2021"
+authors.workspace = true
+license.workspace = true
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
 amp-core = { path = "../core" }
-tokio = { workspace = true }
-serde_json = { workspace = true }
-tracing = { workspace = true }
-jni = "0.21"
+jni = { workspace = true }
 lazy_static = { workspace = true }
+tracing = { workspace = true }
 
 [profile.release]
 opt-level = 3
 lto = true
+strip = true

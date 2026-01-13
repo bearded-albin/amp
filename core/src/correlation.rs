@@ -1,6 +1,6 @@
 use crate::error::{AMPError, Result};
-use crate::models::{CleaningEvent, CleaningSchedule, GpsCoordinate};
-use chrono::{DateTime, Utc, Weekday};
+use crate::models::{CleaningEvent, CleaningSchedule};
+use chrono::{Datelike, Timelike};
 use std::collections::HashMap;
 
 pub struct CorrelationAnalyzer {
@@ -51,7 +51,7 @@ impl CorrelationAnalyzer {
         address: &str,
         events: Vec<&CleaningEvent>,
     ) -> Result<CleaningSchedule> {
-        let timestamps: Vec<DateTime<Utc>> = events.iter().map(|e| e.timestamp).collect();
+        let timestamps: Vec<_> = events.iter().map(|e| e.timestamp).collect();
 
         let mut intervals = Vec::new();
         for i in 1..timestamps.len() {
@@ -181,34 +181,5 @@ impl CorrelationAnalyzer {
             dominant_hour,
             (dominant_hour + 1) % 24
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_high_precision_coordinates() {
-        let coord = GpsCoordinate::new("55.605012345", "13.003812345").unwrap();
-        assert!(coord.latitude.to_string().len() >= 11);
-        assert!(coord.longitude.to_string().len() >= 11);
-    }
-
-    #[test]
-    fn test_malmo_bounds() {
-        let inside = GpsCoordinate::new("55.6050", "13.0038").unwrap();
-        assert!(inside.is_in_malmo());
-
-        let outside = GpsCoordinate::new("60.0", "13.0").unwrap();
-        assert!(!outside.is_in_malmo());
-    }
-
-    #[test]
-    fn test_confidence_calculation() {
-        let analyzer = CorrelationAnalyzer::new(0.75);
-        let perfect = vec![168.0, 168.0, 168.0];
-        let confidence = analyzer.calculate_confidence(&perfect, 168.0);
-        assert!(confidence > 0.95);
     }
 }

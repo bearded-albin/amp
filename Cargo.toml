@@ -10,11 +10,18 @@ authors = ["Your Name"]
 license = "MIT"
 
 [workspace.dependencies]
-# Core dependencies
+# Async runtime
 tokio = { version = "1.35", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+
+# Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# Error handling
 thiserror = "1.0"
+
+# Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
@@ -23,8 +30,8 @@ ndarray = { version = "0.15", features = ["serde"] }
 nalgebra = { version = "0.33", features = ["serde-serialize"] }
 rust_decimal = { version = "1.33", features = ["serde"] }
 
-# HTTP & Async
-reqwest = { version = "0.11", features = ["json"] }
+# HTTP & Web
+reqwest = { version = "0.11", features = ["json", "cookies"] }
 axum = "0.7"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["trace", "cors"] }
@@ -32,9 +39,34 @@ tower-http = { version = "0.5", features = ["trace", "cors"] }
 # Geospatial
 geo = { version = "0.28" }
 geohash = "0.13"
+parking_lot = "0.12"
+
+# Utils
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+dotenvy = "0.15"
+sha2 = "0.10"
+hex = "0.4"
+
+# GUI (Iced)
+iced = { version = "0.12", features = ["debug", "tokio", "image"] }
+iced_core = "0.12"
 
 # Python integration
 pyo3 = { version = "0.20", features = ["extension-module"] }
+pyo3-build-config = "0.20"
 
 # Testing
-pytest-runner = "6.0"
+tokio-test = "0.4"
+proptest = "1.4"
+lazy_static = "1.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.dev]
+opt-level = 1

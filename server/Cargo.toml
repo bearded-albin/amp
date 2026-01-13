@@ -18,13 +18,13 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { workspace = true }
 reqwest = { workspace = true }
 rust_decimal = { workspace = true }
-sha2 = "0.10"
-parking_lot = "0.12"
-dotenvy = "0.15"
-arc-swap = "1.6"
+sha2 = { workspace = true }
+parking_lot = { workspace = true }
+dotenvy = { workspace = true }
+uuid = { workspace = true }
 amp-core = { path = "../core" }
 
 [profile.release]

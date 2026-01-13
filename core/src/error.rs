@@ -1,6 +1,5 @@
-/// Comprehensive error handling for AMP system
+//! AMP Core Error Types
 use thiserror::Error;
-use std::num::ParseFloatError;
 
 #[derive(Error, Debug)]
 pub enum AMPError {
@@ -20,7 +19,7 @@ pub enum AMPError {
     GeolocationFailed(String),
 
     #[error("Invalid coordinate: {0}")]
-    InvalidCoordinate(#[from] ParseFloatError),
+    InvalidCoordinate(String),
 
     #[error("Configuration error: {0}")]
     ConfigError(String),
@@ -34,14 +33,11 @@ pub enum AMPError {
     #[error("HTTP error: {0}")]
     HttpError(#[from] reqwest::Error),
 
-    #[error("Decimal operation error: {0}")]
+    #[error("Decimal error: {0}")]
     DecimalError(String),
 
     #[error("Time error: {0}")]
     TimeError(String),
-
-    #[error("Database error: {0}")]
-    DatabaseError(String),
 
     #[error("Unknown error: {0}")]
     Unknown(String),
@@ -49,7 +45,6 @@ pub enum AMPError {
 
 pub type Result<T> = std::result::Result<T, AMPError>;
 
-/// Retry configuration for exponential backoff
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     pub max_attempts: u32,
@@ -67,11 +62,7 @@ impl Default for RetryConfig {
     }
 }
 
-/// Retry with exponential backoff
-pub async fn retry_async<F, Fut, T>(
-    f: F,
-    config: &RetryConfig,
-) -> Result<T>
+pub async fn retry_async<F, Fut, T>(f: F, config: &RetryConfig) -> Result<T>
 where
     F: Fn() -> Fut,
     Fut: std::future::Future<Output = Result<T>>,

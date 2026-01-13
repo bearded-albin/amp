@@ -1,7 +1,3 @@
 /target
-/amp/.idea
 .idea
 Cargo.lock
-/amp-jsonfix/Cargo.lock
-/amp-jsonfix/target
-/amp-correlation/target

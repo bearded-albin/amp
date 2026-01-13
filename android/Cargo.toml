@@ -1,0 +1,15 @@
+[package]
+name = "amp-android"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+amp-core = { path = "../core" }
+pyo3 = { workspace = true, features = ["extension-module", "abi3-py310"] }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+jni = "0.21"

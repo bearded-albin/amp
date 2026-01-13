@@ -1,12 +1,40 @@
-[package]
-name = "amp"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["core", "server", "android", "py-bridge"]
+resolver = "2"
 
-[dependencies]
-iced = { version = "0.14.0", features = ["tokio"] }
-get_fields = "0.1.0"
-arrow = "57.1.0"
-parquet = "57.1.0"
-anyhow = "1.0.100"
-chrono = "0.4.42"
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.75.0"
+authors = ["Your Name"]
+license = "MIT"
+
+[workspace.dependencies]
+# Core dependencies
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Data processing
+ndarray = { version = "0.15", features = ["serde"] }
+nalgebra = { version = "0.33", features = ["serde-serialize"] }
+rust_decimal = { version = "1.33", features = ["serde"] }
+
+# HTTP & Async
+reqwest = { version = "0.11", features = ["json"] }
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# Geospatial
+geo = { version = "0.28" }
+geohash = "0.13"
+
+# Python integration
+pyo3 = { version = "0.20", features = ["extension-module"] }
+
+# Testing
+pytest-runner = "6.0"

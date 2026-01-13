@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 version = "1.0.0"
-edition = "2021"
+edition = "2024"
 authors = ["Albin Sjögren <albin@malmo.skaggbyran.se>"]
 license = "GPL-3"
 

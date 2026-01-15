@@ -1,99 +1,122 @@
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use std::str::FromStr;
 use rust_decimal::prelude::ToPrimitive;
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+/// High-precision GPS coordinate (8+ decimal places = ±0.1m accuracy)
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub struct GpsCoordinate {
     pub latitude: Decimal,
     pub longitude: Decimal,
 }
 
 impl GpsCoordinate {
-    pub fn new(lat: &str, lon: &str) -> Result<Self, String> {
-        let latitude = Decimal::from_str(lat)
-            .map_err(|_| format!("Invalid latitude: {}", lat))?;
-        let longitude = Decimal::from_str(lon)
-            .map_err(|_| format!("Invalid longitude: {}", lon))?;
-
-        if latitude < Decimal::from(-90) || latitude > Decimal::from(90) {
-            return Err(format!("Latitude out of range: {}", latitude));
+    pub fn new(lat: f64, lon: f64) -> Self {
+        Self {
+            latitude: Decimal::from_str(&format!("{:.8}", lat))
+                .unwrap_or_else(|_| Decimal::from_f64_retain(lat).unwrap_or(Decimal::ZERO)),
+            longitude: Decimal::from_str(&format!("{:.8}", lon))
+                .unwrap_or_else(|_| Decimal::from_f64_retain(lon).unwrap_or(Decimal::ZERO)),
         }
-        if longitude < Decimal::from(-180) || longitude > Decimal::from(180) {
-            return Err(format!("Longitude out of range: {}", longitude));
-        }
-
-        Ok(Self { latitude, longitude })
     }
 
-    pub fn is_in_malmo(&self) -> bool {
-        let lat = self.latitude;
-        let lon = self.longitude;
-        lat >= Decimal::from_str_exact("55.55").unwrap() &&
-        lat <= Decimal::from_str_exact("55.65").unwrap() &&
-        lon >= Decimal::from_str_exact("12.90").unwrap() &&
-        lon <= Decimal::from_str_exact("13.10").unwrap()
+    /// Check if coordinates are within Malmö city bounds
+    pub fn is_malmo_coords(&self) -> bool {
+        let lat = self.latitude.to_f64().unwrap_or(0.0);
+        let lon = self.longitude.to_f64().unwrap_or(0.0);
+
+        // Malmö city bounds (approximately)
+        lat >= 55.55 && lat <= 55.65 && lon >= 12.95 && lon <= 13.05
     }
 
-    pub fn distance_to(&self, other: &GpsCoordinate) -> f64 {
-        use std::f64::consts::PI;
-        let lat1 = self.latitude.to_f64().unwrap_or(0.0) * PI / 180.0;
-        let lat2 = other.latitude.to_f64().unwrap_or(0.0) * PI / 180.0;
-        let delta_lat = (other.latitude.to_f64().unwrap_or(0.0) - self.latitude.to_f64().unwrap_or(0.0)) * PI / 180.0;
-        let delta_lon = (other.longitude.to_f64().unwrap_or(0.0) - self.longitude.to_f64().unwrap_or(0.0)) * PI / 180.0;
+    pub fn distance_to(&self, other: &GpsCoordinate) -> Decimal {
+        let lat1 = self.latitude.to_f64().unwrap_or(0.0);
+        let lon1 = self.longitude.to_f64().unwrap_or(0.0);
+        let lat2 = other.latitude.to_f64().unwrap_or(0.0);
+        let lon2 = other.longitude.to_f64().unwrap_or(0.0);
 
-        let a = (delta_lat / 2.0).sin().powi(2)
-            + lat1.cos() * lat2.cos() * (delta_lon / 2.0).sin().powi(2);
-        let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
-        6371000.0 * c
+        let dx = lat2 - lat1;
+        let dy = lon2 - lon1;
+        let dist = (dx * dx + dy * dy).sqrt();
+
+        Decimal::from_f64_retain(dist).unwrap_or(Decimal::ZERO)
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CleaningEvent {
-    pub address: String,
-    pub coordinate: GpsCoordinate,
-    pub timestamp: DateTime<Utc>,
-    pub is_active: bool,
+/// Address stored by user
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct Address {
+    pub id: String,
+    pub name: String,
+    pub street: String,
+    pub coordinates: Option<String>, // JSON serialized (lat, lon) to avoid float issues
+    pub active: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl Address {
+    pub fn get_coordinates(&self) -> Option<(f64, f64)> {
+        self.coordinates.as_ref().and_then(|coords_str| {
+            if let Ok(val) = serde_json::from_str::<[f64; 2]>(coords_str) {
+                Some((val[0], val[1]))
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn set_coordinates(&mut self, lat: f64, lon: f64) {
+        self.coordinates = serde_json::to_string(&[lat, lon]).ok();
+    }
+}
+
+/// Malmö street cleaning schedule
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CleaningSchedule {
-    pub address: String,
-    pub coordinate: GpsCoordinate,
-    pub next_cleaning: DateTime<Utc>,
-    pub frequency_hours: f64,
-    pub confidence: f64,
-    pub day_of_week: String,
-    pub time_of_day: String,
-    pub last_cleaning: DateTime<Utc>,
-    pub sample_size: usize,
+    pub street_name: String,
+    pub next_cleaning: String, // ISO 8601 date
+    pub days_until: i32,
+    pub area_code: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+/// Alert severity levels
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AlertLevel {
-    Info,
-    Warning,
-    Urgent,
-    Active,
+    Cleaning,     // Cleaning happening now
+    SixHours,     // 6 hours until cleaning
+    TwentyFours,  // 24 hours until cleaning
+    None,         // No upcoming cleaning
 }
 
 impl AlertLevel {
-    pub fn from_hours_until(hours: i64) -> Self {
-        match hours {
-            ..=0 => AlertLevel::Active,
-            1..=6 => AlertLevel::Urgent,
-            7..=24 => AlertLevel::Warning,
-            _ => AlertLevel::Info,
+    pub fn priority(&self) -> u32 {
+        match self {
+            AlertLevel::Cleaning => 3,
+            AlertLevel::SixHours => 2,
+            AlertLevel::TwentyFours => 1,
+            AlertLevel::None => 0,
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(Clone)]
-pub struct StoredAddress {
-    pub address: String,
-    pub coordinate: GpsCoordinate,
-    pub added_at: DateTime<Utc>,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_malmo_bounds() {
+        let malmo = GpsCoordinate::new(55.6050, 13.0038);
+        assert!(malmo.is_malmo_coords());
+
+        let stockholm = GpsCoordinate::new(59.3293, 18.0686);
+        assert!(!stockholm.is_malmo_coords());
+    }
+
+    #[test]
+    fn test_high_precision() {
+        let coord = GpsCoordinate::new(55.60501234, 13.00381234);
+        assert_eq!(
+            coord.latitude.to_string(),
+            "55.60501234"
+        );
+    }
 }

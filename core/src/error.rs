@@ -1,24 +1,30 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum AMPError {
-    #[error("Correlation analysis failed: {0}")]
-    CorrelationFailed(String),
+pub enum AmpError {
+    #[error("Invalid GPS coordinates: {0}")]
+    InvalidGps(String),
 
     #[error("Geolocation error: {0}")]
-    GeolocationFailed(String),
+    GeolocationError(String),
 
-    #[error("Invalid coordinate: {0}")]
-    InvalidCoordinate(String),
+    #[error("Address not in Malmö")]
+    AddressNotInMalmo,
 
-    #[error("Configuration error: {0}")]
-    ConfigError(String),
+    #[error("Correlation error: {0}")]
+    CorrelationError(String),
 
-    #[error("JSON error: {0}")]
-    JsonError(#[from] serde_json::error::Error),
+    #[error("Serialization error: {0}")]
+    SerializationError(#[from] serde_json::Error),
 
-    #[error("Unknown error: {0}")]
-    Unknown(String),
+    #[error("State error: {0}")]
+    StateError(String),
+
+    #[error("JNI error: {0}")]
+    JniError(String),
+
+    #[error("Data error: {0}")]
+    DataError(String),
 }
 
-pub type Result<T> = std::result::Result<T, AMPError>;
+pub type AmpResult<T> = Result<T, AmpError>;

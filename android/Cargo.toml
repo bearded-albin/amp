@@ -1,15 +1,24 @@
 [package]
-name = "amp-android"
+name = "amp"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
-[lib]
-crate-type = ["cdylib"]
-
 [dependencies]
 amp-core = { path = "../core" }
-jni = { workspace = true }
-lazy_static = { workspace = true }
-tracing = { workspace = true }
+dioxus.workspace = true
+dioxus-router.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rust_decimal.workspace = true
+
+[features]
+default = ["desktop"]
+desktop = ["dioxus/desktop"]
+web = ["dioxus/web"]
+
+[[bin]]
+name = "amp"
+path = "src/main.rs"
+

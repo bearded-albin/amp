@@ -12,3 +12,5 @@ rust_decimal.workspace = true
 thiserror.workspace = true
 parking_lot.workspace = true
 tracing.workspace = true
+arrow.workspace = true
+parquet.workspace = true

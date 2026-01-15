@@ -20,3 +20,5 @@ thiserror = "2.0.17"
 parking_lot = "0.12.5"
 dioxus = { version = "0.7.2", features = ["desktop", "router"] }
 dioxus-router = "0.7.2"
+arrow = { version = "57.2" }
+parquet = "57.2"

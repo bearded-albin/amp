@@ -475,6 +475,7 @@ const CSS: &str = r#"
         gap: 10px;
         flex-wrap: wrap;
         align-items: flex-end;
+        padding-right: 10px;
     }
 
     .input-group {
@@ -482,6 +483,7 @@ const CSS: &str = r#"
         gap: 10px;
         flex: 1;
         min-width: 300px;
+        margin-right: 10px;
     }
 
     .input-group input {
@@ -490,6 +492,7 @@ const CSS: &str = r#"
         border: none;
         border-radius: 4px;
         font-size: 14px;
+        min-width: 0;
     }
 
     #streetInput {
@@ -797,9 +800,16 @@ const CSS: &str = r#"
     }
 
     @media (max-width: 768px) {
+        .input-section {
+            flex-direction: column;
+            padding-right: 0;
+        }
+
         .input-group {
             flex-direction: column;
             min-width: 100%;
+            margin-right: 0;
+            width: 100%;
         }
 
         .input-group input {

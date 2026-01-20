@@ -11,11 +11,11 @@
 
 AMP solves a specific problem: **How do we efficiently and accurately match residential addresses to their applicable parking zone restrictions?** And more importantly **How do I avoid constantly getting parking tickets!? It feels like I'm single-handedly funding Malmö...**
 
-📍 Input: Address (street name + coordinates)
-    ↓
-🔄 Processing: Point-to-line distance calculation
-    ↓
-✅ Output: Matching parking zone + time/day restrictions
+Input: Address (street name + coordinates) /newline  
+&nbsp;&nbsp;&nbsp;  ↓  
+Processing: Point-to-line distance calculation  
+&nbsp;&nbsp;&nbsp;  ↓  
+Output: Matching parking zone + time/day restrictions  
 
 ### Why AMP Matters
 
@@ -55,9 +55,9 @@ AMP is organized as a **Rust workspace with four integrated modules**:
 | Module | Purpose | Technology |
 |--------|---------|----------|
 | **core** | Geospatial correlation algorithms + ArcGIS API integration | Rust async/await, Tokio, Rayon parallelization[4] |
-| **android** | Native Android application using correlation results | Kotlin/Java interop with Rust via JNI |
-| **ios** | Native iOS application using correlation results | Swift interop with Rust via FFI |
-| **server** | REST API server exposing correlation functionality | Tokio web framework, JSON serialization |
+| **android** | Native Android application using correlation results | Dioxus |
+| **ios** | Native iOS application using correlation results | Dioxus |
+| **server** | REST API server exposing correlation functionality | Headles linux runner |
 
 ## Getting Started
 
@@ -316,7 +316,7 @@ Module-specific guides:
 - [core/README.md](core/README.md) - Core library structure, quick start
 - [android/README.md](android/README.md) - Android app integration
 - [ios/README.md](ios/README.md) - iOS app integration
-- [server/README.md](server/README.md) - REST API deployment
+- [server/README.md](server/README.md) - Auto update server with deployment
 
 ### Inline Code Documentation
 **In source:** `src/lib.rs`, `src/*.rs`

@@ -3,3 +3,6 @@ pub mod correlation;
 pub mod parquet;
 pub mod structs;
 pub mod api;
+
+#[cfg(test)]
+mod correlation_tests;

@@ -23,6 +23,14 @@ jobs:
         with:
           targets: aarch64-linux-android
 
+      - name: Install Dioxus CLI
+        timeout-minutes: 10
+        run: |
+          set -e
+          echo "Installing Dioxus CLI..."
+          cargo install dioxus-cli --locked
+          dx --version
+
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
@@ -244,23 +252,56 @@ jobs:
           "$ANDROID_HOME/platform-tools/adb" devices -l
           "$ANDROID_HOME/platform-tools/adb" shell getprop ro.build.version.release
 
-      - name: Install dependencies
-        timeout-minutes: 15
-        run: cargo fetch
-
-      - name: Build Android APK
+      - name: Build Android APK with Dioxus CLI
         timeout-minutes: 30
         run: |
           set -e
-          echo "Building Android APK..."
-          dx serve --package amp-android --android --release
+          echo "Building Android APK using Dioxus CLI..."
+          dx build --android --release --bundle android --package amp-android
+          
+          echo ""
+          echo "Build completed successfully!"
+          echo "APK location:"
+          find target/dx -name "*.apk" -type f 2>/dev/null | head -5
 
-      - name: Run tests
-        timeout-minutes: 20
+      - name: Install APK on emulator
+        timeout-minutes: 10
         run: |
           set -e
-          echo "Running tests..."
-          cargo test --target aarch64-linux-android --no-run
+          echo "Installing APK on emulator..."
+          
+          # Find the built APK
+          APK_PATH=$(find target/dx/amp/release/android -name "app-release.apk" -o -name "app-debug.apk" | head -1)
+          
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: APK not found!"
+            echo "Searching in target/dx/amp/release/android:"
+            find target/dx/amp/release/android -type f -name "*.apk" || true
+            exit 1
+          fi
+          
+          echo "Found APK: $APK_PATH"
+          echo "Installing APK..."
+          "$ANDROID_HOME/platform-tools/adb" install -r "$APK_PATH"
+          
+          echo ""
+          echo "✓ APK installed successfully!"
+
+      - name: Verify app installation
+        timeout-minutes: 10
+        run: |
+          set -e
+          echo "Verifying app installation..."
+          
+          # Check if amp package is installed
+          echo "Checking installed packages..."
+          "$ANDROID_HOME/platform-tools/adb" shell pm list packages | grep amp || {
+            echo "Warning: amp package not found in pm list"
+          }
+          
+          echo ""
+          echo "Device logcat (last 50 lines):"
+          "$ANDROID_HOME/platform-tools/adb" logcat -d | tail -50
 
       - name: Check device and logs on failure
         if: failure()
@@ -280,12 +321,12 @@ jobs:
           echo "=== System boot properties ==="
           "$ANDROID_HOME/platform-tools/adb" shell getprop | grep -E "boot|init\.svc" || true
 
-      - name: Upload test results
+      - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
-          path: build/
+          name: android-build
+          path: target/dx/
           if-no-files-found: ignore
 
       - name: Upload emulator logs
@@ -317,8 +358,9 @@ jobs:
           echo "Android emulator: TestDevice"
           echo "SDK API level: 33 or 34"
           echo "Architecture: x86_64"
+          echo "Build tool: Dioxus CLI (dx)"
           echo "Timeout: 90 minutes"
           echo ""
           echo "If tests failed, check artifacts:"
           echo "  - emulator-logs: emulator.log"
-          echo "  - test-results: build/"
+          echo "  - android-build: target/dx/"

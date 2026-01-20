@@ -5,7 +5,6 @@ use rust_decimal::Decimal;
 
 use crate::structs::{AdressClean, MiljoeDataClean};
 
-/// ArcGIS Query Response
 #[derive(Debug, Deserialize)]
 pub struct ArcGISResponse {
     pub features: Vec<ArcGISFeature>,
@@ -13,14 +12,12 @@ pub struct ArcGISResponse {
     pub exceeded_transfer_limit: bool,
 }
 
-/// Individual ArcGIS Feature (raw from API)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArcGISFeature {
     pub attributes: JsonValue,
     pub geometry: Option<JsonValue>,
 }
 
-/// ArcGIS API Client
 pub struct ArcGISClient {
     client: reqwest::Client,
 }
@@ -32,7 +29,6 @@ impl ArcGISClient {
         }
     }
 
-    /// Fetch all features from an ArcGIS Feature Service with automatic pagination
     async fn fetch_all_features(
         &self,
         service_url: &str,
@@ -63,14 +59,12 @@ impl ArcGISClient {
         Ok(all_features)
     }
 
-    /// Convert ArcGIS geometry to GeoJSON and extract point coordinates
     fn extract_point_from_geojson(geometry: &JsonValue) -> Option<[Decimal; 2]> {
         let geom_json = serde_json::to_string(geometry).ok()?;
         match geom_json.parse::<GeoJson>() {
             Ok(GeoJson::Geometry(geom)) => match geom.value {
                 Value::Point(coords) => {
                     if coords.len() >= 2 {
-                        // Parse f64 from GeoJSON, convert to Decimal with full precision
                         let x = Decimal::from_f64_retain(coords[0]).unwrap_or_default();
                         let y = Decimal::from_f64_retain(coords[1]).unwrap_or_default();
                         Some([x, y])
@@ -84,7 +78,6 @@ impl ArcGISClient {
         }
     }
 
-    /// Convert ArcGIS geometry to GeoJSON and extract polygon bounding box
     fn extract_polygon_from_geojson(geometry: &JsonValue) -> Option<[[Decimal; 2]; 2]> {
         let geom_json = serde_json::to_string(geometry).ok()?;
         match geom_json.parse::<GeoJson>() {
@@ -116,7 +109,6 @@ impl ArcGISClient {
         }
     }
 
-    /// Convert raw ArcGIS features to AdressClean structs
     fn to_adress_clean(&self, features: Vec<ArcGISFeature>) -> Vec<AdressClean> {
         features
             .into_iter()
@@ -124,10 +116,8 @@ impl ArcGISClient {
                 let attrs = &feat.attributes;
                 let geometry = feat.geometry?;
 
-                // Extract coordinates from GeoJSON point
                 let coordinates = Self::extract_point_from_geojson(&geometry)?;
 
-                // Extract required fields - skip if any are missing
                 let postnummer = attrs
                     .get("PostalCode")
                     .or_else(|| attrs.get("postalcode"))
@@ -168,7 +158,6 @@ impl ArcGISClient {
             .collect()
     }
 
-    /// Convert raw ArcGIS features to MiljoeDataClean structs
     fn to_miljoe_clean(&self, features: Vec<ArcGISFeature>) -> Vec<MiljoeDataClean> {
         features
             .into_iter()
@@ -176,10 +165,8 @@ impl ArcGISClient {
                 let attrs = &feat.attributes;
                 let geometry = feat.geometry?;
 
-                // Extract bounding box from GeoJSON polygon
                 let coordinates = Self::extract_polygon_from_geojson(&geometry)?;
 
-                // Extract required fields - skip if any are missing
                 let info = attrs
                     .get("Name")
                     .or_else(|| attrs.get("Info"))
@@ -217,7 +204,6 @@ impl ArcGISClient {
 pub async fn api() -> Result<(Vec<AdressClean>, Vec<MiljoeDataClean>), Box<dyn std::error::Error>> {
     let client = ArcGISClient::new();
 
-    // Malmö Addresses
     println!("Fetching Malmö addresses...");
     let address_features = client
         .fetch_all_features(
@@ -229,12 +215,10 @@ pub async fn api() -> Result<(Vec<AdressClean>, Vec<MiljoeDataClean>), Box<dyn s
     let addresses = client.to_adress_clean(address_features);
     println!("Converted {} raw features to AdressClean", addresses.len());
 
-    // Print first few entries
     for (i, addr) in addresses.iter().take(3).enumerate() {
         println!("  [{}] {} ({})", i + 1, addr.adress, addr.postnummer);
     }
 
-    // Miljö Parking
     println!("\nFetching environmental parking data...");
     let parking_features = client
         .fetch_all_features(
@@ -249,15 +233,9 @@ pub async fn api() -> Result<(Vec<AdressClean>, Vec<MiljoeDataClean>), Box<dyn s
         parking.len()
     );
 
-    // Print first few entries
     for (i, park) in parking.iter().take(3).enumerate() {
         println!("  [{}] {} ({})", i + 1, park.info, park.dag);
     }
-
-    // Now you have:
-    // - addresses: Vec<AdressClean>
-    // - parking: Vec<MiljoeDataClean>
-    // Use them directly - no file I/O
 
     Ok((addresses, parking))
 }

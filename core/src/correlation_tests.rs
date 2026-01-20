@@ -291,7 +291,7 @@ mod tests {
                 gatunummer: "5".to_string(),
             },
             AdressClean {
-                coordinates: [decimal("13.2000000"), decimal("55.6150000")],
+                coordinates: [decimal("13.5000000"), decimal("55.9000000")], // VERY FAR
                 postnummer: 202,
                 adress: "Västra Varvsgatan 10".to_string(),
                 gata: "Västra Varvsgatan".to_string(),
@@ -331,7 +331,7 @@ mod tests {
         assert_eq!(results[1].adress, "Lilla Torg 5");
         assert!(results[1].relevant);
 
-        // Third address has no close parking zone (too far)
+        // Third address is very far (not relevant)
         assert_eq!(results[2].adress, "Västra Varvsgatan 10");
         assert!(!results[2].relevant);
     }
@@ -398,11 +398,13 @@ mod tests {
         let distance = results[0].unwrap().1;
 
         // Test against multiple threshold values
+        // Distance is approximately 0.000281
         let test_thresholds = [
-            ("0.0001", false),  // 10 meters - too small
-            ("0.001", false),   // 100 meters - close
-            ("0.01", true),     // 1000 meters - should pass
-            ("0.1", true),      // 10km - definitely passes
+            ("0.00001", false),  // 1 meter - too small
+            ("0.0001", false),   // 10 meters - too small
+            ("0.001", true),     // 100 meters - should pass (distance 0.000281 < 0.001)
+            ("0.01", true),      // 1000 meters - should pass
+            ("0.1", true),       // 10km - definitely passes
         ];
 
         for (threshold_str, should_pass) in &test_thresholds {

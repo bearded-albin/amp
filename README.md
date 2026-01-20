@@ -1,16 +1,15 @@
-# AMP (Address-to-Parking Mapping Platform)
+# AMP 
 
-[![Rust](https://github.com/resonant-jovian/amp/actions/workflows/android-test.yml/badge.svg)](https://github.com/resonant-jovian/amp/actions/workflows/android-test.yml)
+[![Android app](https://github.com/resonant-jovian/amp/actions/workflows/android-test.yml/badge.svg)](https://github.com/resonant-jovian/amp/actions/workflows/android-test.yml)
+[![Core tests](https://github.com/resonant-jovian/amp/actions/workflows/correlation-tests.yml/badge.svg)](https://github.com/resonant-jovian/amp/actions/workflows/correlation-tests.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Rust Version](https://img.shields.io/badge/rust-1.70%2B-orange)](https://www.rust-lang.org/)
 
-**AMP** is a production-grade geospatial correlation library written in Rust that matches street addresses to environmental parking zones in Malmö, Sweden[1]. The system combines async/await networking, parallel processing with SIMD optimization, and high-precision decimal arithmetic to achieve reliable coordinate-based distance calculations at scale.
-
-**Live in production:** Processing 10,000+ address-to-zone correlations with <1 second response time across native Android, iOS, and REST API platforms[2].
+**AMP** is a production-grade geospatial correlation library written in Rust that matches street addresses to environmental parking zones in Malmö, Sweden[1]. The system combines async/await networking, parallel processing with SIMD optimization, and high-precision decimal arithmetic to achieve reliable coordinate-based distance calculations at scale. All so you can have an app on your phone to avoid parking tickets from the environmental parking restrictions or know that you have been ticked when you shouldn't have been, without needing internet access at that!
 
 ## Quick Overview
 
-AMP solves a specific problem: **How do we efficiently and accurately match residential addresses to their applicable parking zone restrictions?**
+AMP solves a specific problem: **How do we efficiently and accurately match residential addresses to their applicable parking zone restrictions?** And more importantly **How do I avoid constantly getting parking tickets!? It feels like I'm single-handedly funding Malmö...**
 
 📍 Input: Address (street name + coordinates)
     ↓
@@ -37,21 +36,20 @@ AMP is organized as a **Rust workspace with four integrated modules**:
 │              AMP Workspace (Cargo)              │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ┌──────────────┐  ┌──────────────────────┐   │
-│  │     core     │  │   Shared Libraries   │   │
-│  │ Correlation │  │  • Error handling    │   │
-│  │   Engine    │  │  • Data types        │   │
-│  └──────────────┘  │  • Serialization    │   │
-│         ▲          └──────────────────────┘   │
-│         │                                      │
-│   ┌─────┴──────┬──────────────┬──────────┐    │
-│   │            │              │          │    │
-│ ┌─▼─┐      ┌──▼──┐      ┌────▼─┐   ┌───▼──┐ │
-│ │AND│      │ iOS │      │SRV   │   │DOCS  │ │
-│ │ROI│      │ APP │      │API   │   │      │ │
-│ └───┘      └─────┘      └──────┘   └──────┘ │
-│                                              │
-└──────────────────────────────────────────────┘
+│  ┌──────────────┐  ┌──────────────────────┐     │
+│  │     core     │  │   Shared Libraries   │     │
+│  │ Correlation  │  │  • Error handling    │     │
+│  │   Engine     │  │  • Data types        │     │
+│  └──────────────┘  │  • Serialization     │     │
+│         ▲          └──────────────────────┘     │
+│         │                                       │
+│   ┌─────┴──────┬──────────────┬──────────┐      │
+│   │            │              │          │      │
+│ ┌─▼─────┐   ┌──▼──┐      ┌────▼───┐   ┌──▼───┐  │
+│ │ANDROID│   │ iOS │      │ SERVER │   │ DOCS │  │
+│ └───────┘   └─────┘      └────────┘   └──────┘  │
+│                                                 │
+└─────────────────────────────────────────────────┘
 ```
 
 | Module | Purpose | Technology |
@@ -70,6 +68,9 @@ Download AMP from your platform's app store to check parking restrictions in Mal
 1. **Enter address** or use current location
 2. **View results:** Zone restrictions, time windows, applicable days
 3. **Get notifications** for restriction changes
+
+OR build it yousrself! 
+See [Build Steps](#build-steps)
 
 ### For Developers (Rust Library)
 
@@ -240,11 +241,11 @@ The system uses **0.001 degrees** as the matching threshold:
 
 **Why this threshold?**
 
-| Threshold | Result | Problem |
-|-----------|--------|----------|
-| 50m | Too strict | Misses valid zones due to coordinate variations |
-| **111m** | **Optimal** | Captures neighborhood-level accuracy |
-| 200m | Too permissive | Creates false matches with distant zones |
+| Threshold |     Result     |                     Problem                     |
+|-----------|----------------|-------------------------------------------------|
+|    50m    |   Too strict   | Misses valid zones due to coordinate variations |
+|  **111m** |   **Optimal**  |       Captures neighborhood-level accuracy      |
+|    200m   | Too permissive |     Creates false matches with distant zones    |
 
 **Real-world calibration:** Tested against 1,000+ address-zone pairs from Malmö city records[12].
 
@@ -262,12 +263,12 @@ cargo test --release test_correlation
 
 **Test Coverage:**
 
-| Category | Tests | Status |
-|----------|-------|--------|
-| Precision preservation | 3 tests | ✅ All pass |
-| Threshold boundary | 4 tests | ✅ All pass |
+|                   Category                   |  Tests  |    Status   |
+|----------------------------------------------|---------|-------------|
+|            Precision preservation            | 3 tests | ✅ All pass |
+|              Threshold boundary              | 4 tests | ✅ All pass |
 | Edge cases (degenerate segments, null zones) | 3 tests | ✅ All pass |
-| Real-world Malmö coordinates | 2 tests | ✅ All pass |
+|         Real-world Malmö coordinates         | 2 tests | ✅ All pass |
 
 **Pass/Not Token System:** Every test result includes explicit `PASS` or `NOT` tokens for clarity[13].
 
@@ -275,12 +276,12 @@ See detailed test documentation: [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md)
 
 ## Performance Benchmarks
 
-| Dataset Size | Time | Memory | Throughput |
-|---|---|---|---|
-| 100 addresses + 50 zones | 0.8s | 15MB | 5K corr/s |
-| 1,000 addresses + 100 zones | 8.2s | 45MB | 12K corr/s |
-| Parquet save (1000 results) | 320ms | 8MB | 3,100 writes/s |
-| Parquet load (1000 results) | 150ms | 8MB | 6,600 reads/s |
+|         Dataset Size        |  Time | Memory |   Throughput   |
+|-----------------------------|-------|--------|----------------|
+|   100 addresses + 50 zones  |  0.8s |  15MB  |    5K corr/s   |
+| 1,000 addresses + 100 zones |  8.2s |  45MB  |   12K corr/s   |
+| Parquet save (1000 results) | 320ms |   8MB  | 3,100 writes/s |
+| Parquet load (1000 results) | 150ms |   8MB  |  6,600 reads/s |
 
 **Optimization techniques:**
 1. **Parallel processing** - Rayon reduces address processing time by ~3x
@@ -292,12 +293,12 @@ See detailed test documentation: [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md)
 
 This repository includes comprehensive documentation at multiple levels:
 
-### 📖 Project-Level (You Are Here)
+### Project-Level (You Are Here)
 **File:** `README.md`
 
 High-level overview, getting started, quick examples. Start here for new users[15].
 
-### 🏗️ Architecture Deep-Dives
+### Architecture Deep-Dives
 **Location:** `docs/`
 
 Detailed technical documentation by topic:
@@ -307,7 +308,7 @@ Detailed technical documentation by topic:
 - **[TEST_STRATEGY.md](docs/TEST_STRATEGY.md)** - Test framework, pass/not tokens, coverage analysis
 - **[REFERENCE_GUIDE.md](docs/REFERENCE_GUIDE.md)** - Reference key index, API signatures, module map
 
-### 📚 Module-Level Documentation
+### Module-Level Documentation
 **Location:** `core/README.md`
 
 Module-specific guides:
@@ -317,7 +318,7 @@ Module-specific guides:
 - [ios/README.md](ios/README.md) - iOS app integration
 - [server/README.md](server/README.md) - REST API deployment
 
-### 💻 Inline Code Documentation
+### Inline Code Documentation
 **In source:** `src/lib.rs`, `src/*.rs`
 
 Rustdoc comments with examples:
@@ -339,7 +340,6 @@ serde           = "1.0.228" # Serialization
 parquet         = "57.2.0"  # Columnar storage
 geojson         = "0.24.2"  # GeoJSON parsing
 arrow           = "57.2.0"  # Arrow data format
-nalgebra        = "0.34.1"  # Linear algebra
 ```
 
 ### Edition & MSRV
@@ -361,13 +361,10 @@ nalgebra        = "0.34.1"  # Linear algebra
 git clone https://github.com/resonant-jovian/amp.git
 cd amp
 
-# Build all modules
-cargo build --release
-
 # Build specific module
-cargo build --release -p amp_core
-cargo build --release -p amp_android
-cargo build --release -p amp_server
+iOS: dx build --ios --release --bundle ios --package amp-ios
+Android: dx build --android --release --bundle android --package amp-android
+Server: cargo build --release -p amp_server
 
 # Run tests
 cargo test --release
@@ -382,25 +379,6 @@ cargo doc --open -p amp_core
 - **Documentation:** `target/doc/amp_core/index.html` (HTML)
 - **Test Results:** Console output from `cargo test`
 
-## Contributing
-
-AMP welcomes contributions! Areas for improvement:
-
-### Documentation
-- [ ] Add API usage examples for each module
-- [ ] Create comparison with other geospatial systems
-- [ ] Document performance tuning strategies
-
-### Code
-- [ ] Implement support for custom distance thresholds
-- [ ] Add caching layer for repeated address lookups
-- [ ] Optimize memory usage for 100K+ address datasets
-
-### Testing
-- [ ] Add property-based testing with `proptest`
-- [ ] Create benchmarks with `criterion`
-- [ ] Add fuzzing tests for GeoJSON parser
-
 **Contribution workflow:**
 
 1. Fork the repository
@@ -408,119 +386,6 @@ AMP welcomes contributions! Areas for improvement:
 3. Follow code guidelines (see [CONTRIBUTING.md](CONTRIBUTING.md))
 4. Add tests for new functionality
 5. Submit pull request with description
-
-## Integration Examples
-
-### Use Case 1: Android App (Kotlin)
-```kotlin
-// Call Rust library via JNI
-val results = AmpCore.correlate(addresses, zones)
-results.forEach { result ->
-    if (result.relevant) {
-        showParkingZone(result.info, result.tid, result.dag)
-    }
-}
-```
-
-### Use Case 2: REST API (Node.js Client)
-```javascript
-const response = await fetch('https://api.amp-parking.se/correlate', {
-    method: 'POST',
-    body: JSON.stringify({ addresses, zones })
-});
-const results = await response.json();
-```
-
-### Use Case 3: Data Analysis (Python/Pandas)
-```python
-import pandas as pd
-import pyarrow.parquet as pq
-
-# Load correlation results
-df = pd.read_parquet('parking_zones_2024-01-20.parquet')
-relevant_zones = df[df['relevant'] == True]
-print(f"Matched {len(relevant_zones)} addresses")
-```
-
-## Performance Considerations
-
-### Memory Usage
-- **Base:** ~5MB for core library
-- **Per 1K addresses:** +5MB
-- **Per 1K zones:** +2MB
-- **Total for 10K addresses + 100 zones:** ~65MB
-
-### CPU Usage
-- **Sequential processing:** Single-threaded, CPU utilization ~25% on quad-core
-- **Parallel processing:** All cores utilized, CPU utilization ~95%
-- **Recommendation:** Use parallel mode for 100+ addresses
-
-### Network I/O
-- **ArcGIS API calls:** 200-500ms per page (depends on network)
-- **Pagination:** Automatic, configurable batch size (default 1000)
-- **Timeout:** 30 seconds per request with exponential backoff
-
-## Troubleshooting
-
-### Build Issues
-
-**Error:** `error: edition '2024' not supported`
-- **Solution:** Update Rust: `rustup update`
-
-**Error:** `Could not compile 'tokio'`
-- **Solution:** Ensure you have build tools installed (C compiler, CMake)
-
-### Runtime Issues
-
-**Error:** `api() timeout after 30s`
-- **Solution:** Check network connectivity, verify ArcGIS API endpoint availability
-- **Resolution:** Retry with exponential backoff (automatic in library)
-
-**Error:** `No matching parking zones found`
-- **Solution:** Address may be outside Malmö city boundaries
-- **Debug:** Check coordinates are within 55.5°N-55.7°N, 12.9°E-13.1°E range
-
-### Performance Issues
-
-**Slow correlation:** <1 address/second
-- **Problem:** Sequential mode is enabled
-- **Solution:** Ensure `par_iter()` is used for batches >100 addresses
-
-**Memory spike:** >500MB for 10K addresses
-- **Problem:** Entire result set in memory before serialization
-- **Solution:** Use streaming approach with Parquet writes in batches
-
-## References
-
-[1] Resonant Jovian Contributors. (2024). AMP: Address-to-Parking Mapping Platform. GitHub. https://github.com/resonant-jovian/amp
-
-[2] AMP Core Module. (2024). Performance benchmarking results. See docs/PERFORMANCE.md.
-
-[3] Malmö Stad. (2024). Environmental parking zones GIS data. Retrieved from ArcGIS Feature Services.
-
-[4] Rayon Crate Documentation. (2024). Data parallelism for Rust. Retrieved from https://docs.rs/rayon/
-
-[5] Klabnik, S., & Nichols, C. (2023). The Rust Book. Chapter 11: Writing automated tests. Retrieved from https://doc.rust-lang.org/book/ch11-00-testing.html
-
-[6] Goldberg, D. (1991). What every computer scientist should know about floating-point arithmetic. *ACM Computing Surveys*, 23(1), 5–48.
-
-[7] Rust Decimal Crate. (2024). Arbitrary precision decimal numbers. Retrieved from https://docs.rs/rust_decimal/
-
-[8] Rayon Documentation. (2024). Performance analysis. Retrieved from https://docs.rs/rayon/latest/rayon/
-
-[9] ESRI. (2024). ArcGIS REST API pagination. Retrieved from https://developers.arcgis.com/rest/services-reference/
-
-[10] Apache Parquet. (2024). Columnar storage format specification. Retrieved from https://parquet.apache.org/
-
-[11] Weisstein, E. W. (2024). Point-line distance. MathWorld: A Wolfram Web Resource. Retrieved from https://mathworld.wolfram.com/Point-LineDistance.html
-
-[12] AMP Core Module. (2024). Threshold calibration testing. See docs/THRESHOLD_ANALYSIS.md.
-
-[13] AMP Core Module. (2024). Test strategy and pass/not token system. See docs/TEST_STRATEGY.md.
-
-[14] Klabnik, S., & Nichols, C. (2023). The Rust Book. Chapter 13: Functional language features. Retrieved from https://doc.rust-lang.org/book/ch13-00-functional-features.html
-
-[15] GitHub. (2024). Making READMEs readable. Best practices guide. Retrieved from https://guides.github.com/features/mastering-markdown/
 
 ## License
 
@@ -530,28 +395,10 @@ This project is licensed under the **GPL-3.0 License**. See the [LICENSE](LICENS
 
 - **Issues & Bug Reports:** [GitHub Issues](https://github.com/resonant-jovian/amp/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/resonant-jovian/amp/discussions)
-- **Email:** [contact@amp-parking.se](mailto:contact@amp-parking.se)
-- **Location:** Malmö, Sweden 🇸🇪
-
-## Roadmap
-
-### Near-term (Q1-Q2 2024)
-- [ ] Support for custom distance thresholds
-- [ ] Caching layer for repeated lookups
-- [ ] Performance dashboard
-
-### Mid-term (Q3-Q4 2024)
-- [ ] Multi-city support (Gothenburg, Stockholm)
-- [ ] GraphQL API alternative
-- [ ] Offline mode for mobile apps
-
-### Long-term (2025+)
-- [ ] Machine learning for zone boundary refinement
-- [ ] Integration with national parking systems
-- [ ] Open-source mobile app release
-
+- **Email:** [albin@malmo.skaggbyran.se](mailto:albin@malmo.skaggbyran.se)
+- **Location:** Malmö, Sweden
 ---
 
-**Made with ❤️ by the AMP team. Last updated: January 2026.**
+**Made with ❤️ by Albin Sjögren. Last updated: January 2026.**
 
 **Get started now:** [core/README.md](core/README.md) • [docs/API_ARCHITECTURE.md](docs/API_ARCHITECTURE.md) • [GitHub](https://github.com/resonant-jovian/amp)

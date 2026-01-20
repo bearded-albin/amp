@@ -7,3 +7,4 @@
 **/*.rs.bk
 amp.apks
 bundletool-all-1.15.6.jar
+.idea

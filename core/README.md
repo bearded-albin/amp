@@ -120,24 +120,24 @@ cargo test --release -p amp_core
 
 ```
 ┌─ ArcGIS Services ─┐
-│ Addresses          │
+│ Addresses         │
 │ Parking Zones     │
-└──────────────────┘
+└───────────────────┘
           │
           │ api()
           │ [REF-API-013]
           │
           │
     ┌─────▼─────┐
-    │             │
-    │  Raw Data  │
-    │             │
-    └─────│──────┘
+    │           │
+    │  Raw Data │
+    │           │
+    └─────│─────┘
           │
           │ correlation()
           │ [REF-CORR-002]
           │
-    ┌─────▼──────┐
+    ┌─────▼────────┐
     │              │
     │  Results     │
     │  - relevant  │

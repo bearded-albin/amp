@@ -2,10 +2,13 @@ use rayon::prelude::*;
 use rust_decimal::{Decimal, MathematicalOps};
 use std::str::FromStr;
 use rust_decimal::prelude::ToPrimitive;
+use tokio::task::block_in_place;
 use crate::structs::*;
 
 pub fn correlation(points: Vec<AdressClean>, lines: Vec<MiljoeDataClean>) -> Vec<AdressInfo> {
-    let results = find_closest_lines(&points, &lines);
+    let results: Vec<Option<(usize, Decimal)>> = block_in_place(|| {
+        find_closest_lines(&points, &lines)
+    });
     let mut correlation = vec![];
     let mut dist_samples = vec![];  // Track distances
 

@@ -2,7 +2,8 @@ use geojson::JsonValue;
 use geojson::{GeoJson, Value};
 use serde::{Deserialize, Serialize};
 use rust_decimal::Decimal;
-
+use rust_decimal::prelude::ToPrimitive;
+use geodesy::prelude::*;
 use crate::structs::{AdressClean, MiljoeDataClean};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,6 +30,31 @@ impl ArcGISClient {
             client: reqwest::Client::new(),
         }
     }
+
+    fn convert_web_mercator_to_sweref99tm(x: f64, y: f64) -> Result<(Decimal, Decimal), Box<dyn std::error::Error>> {
+        let mut context = Minimal::new();
+
+        let op = context.op(
+            "cart  +xy:in +xy:out | \
+         adapt +xy:proj=merc +R=6378137 +xy:in | \
+         adapt +xy:proj=tmerc lon_0=15 k=0.9996 x_0=500000 y_0=0 +xy:out"
+        )?;
+
+        let mut data = [Coor2D::raw(x, y)];
+        context.apply(op, Fwd, &mut data)?;
+
+        // Convert to Decimal, round to 7 decimal places (±1.1cm accuracy)
+        let x_result = Decimal::from_f64_retain(data[0][0])
+            .ok_or("Failed to convert x to Decimal")?
+            .round_dp(7);
+
+        let y_result = Decimal::from_f64_retain(data[0][1])
+            .ok_or("Failed to convert y to Decimal")?
+            .round_dp(7);
+
+        Ok((x_result, y_result))
+    }
+
 
     async fn fetch_all_features(
         &self,
@@ -182,35 +208,32 @@ impl ArcGISClient {
                 };
 
                 let coordinates = match Self::extract_point_from_geojson(&geometry) {
-                    Some(c) => c,
+                    Some(c) => {
+                        let x_f64 = c[0].to_f64().unwrap_or(0.0);
+                        let y_f64 = c[1].to_f64().unwrap_or(0.0);
+
+                        match Self::convert_web_mercator_to_sweref99tm(x_f64, y_f64) {
+                            Ok((x_sweref, y_sweref)) => [x_sweref, y_sweref],
+                            Err(e) => {
+                                eprintln!("Projection error: {}", e);
+                                extraction_failed += 1;
+                                return None;
+                            }
+                        }
+                    },
                     None => {
                         extraction_failed += 1;
                         return None;
                     }
                 };
 
-                // Use the ACTUAL field names from the API response
-                let postnummer = attrs
-                    .get("postnr")?  // ← CHANGED
-                    .as_str()?
-                    .to_string();
-
-                let adress = attrs
-                    .get("beladress")?  // ← CHANGED
-                    .as_str()?
-                    .to_string();
-
-                let gata = attrs
-                    .get("adressomr")?  // ← CHANGED
-                    .as_str()?
-                    .to_string();
-
-                let gatunummer = attrs
-                    .get("adressplat")?  // ← CHANGED
-                    .as_str()?
-                    .to_string();
+                let postnummer = attrs.get("postnr")?.as_str()?.to_string();
+                let adress = attrs.get("beladress")?.as_str()?.to_string();
+                let gata = attrs.get("adressomr")?.as_str()?.to_string();
+                let gatunummer = attrs.get("adressplat")?.as_str()?.to_string();
 
                 converted += 1;
+
                 Some(AdressClean {
                     coordinates,
                     postnummer,
@@ -222,11 +245,13 @@ impl ArcGISClient {
             .collect();
 
         println!(
-            "  Conversion stats - No geometry: {}, Extraction failed: {}, Converted: {}",
+            " Conversion stats - No geometry: {}, Extraction failed: {}, Converted: {}",
             no_geometry, extraction_failed, converted
         );
+
         result
     }
+
 
 
 

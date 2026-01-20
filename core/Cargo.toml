@@ -16,3 +16,4 @@ serde_json.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
+geodesy.workspace = true

@@ -8,3 +8,6 @@
 amp.apks
 bundletool-all-1.15.6.jar
 .idea
+release.jks
+release.jks.backup
+keystore.properties

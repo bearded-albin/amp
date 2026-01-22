@@ -11,8 +11,6 @@ dioxus.workspace = true
 
 [features]
 default = ["mobile"]
-desktop = ["dioxus/desktop"]
-web = ["dioxus/web"]
 mobile = ["dioxus/mobile"]
 
 [[bin]]

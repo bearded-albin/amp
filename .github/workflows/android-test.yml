@@ -65,15 +65,15 @@ jobs:
         if: always()
         run: |
           echo "=== Build Artifacts ==="
-          find target/dx/amp/release/android/app/build/outputs -type f -name "*.apk" 2>/dev/null || echo "No APK found"
-          find target/dx/amp/release/android/app/build/outputs -type f -name "*.aab" 2>/dev/null || echo "No AAB found"
+          find target/dx/amp/release/android/app/app/build/outputs/bundle/release -type f -name "*.apk" 2>/dev/null || echo "No APK found"
+          find target/dx/amp/release/android/app/app/build/outputs/bundle/release -type f -name "*.aab" 2>/dev/null || echo "No AAB found"
 
       - name: Upload APK artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: amp-release-apk
-          path: target/dx/amp/release/android/app/build/outputs/apk/release/*.apk
+          path: target/dx/amp/release/android/app/app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: warn
 
@@ -82,7 +82,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: amp-release-aab
-          path: target/dx/amp/release/android/app/build/outputs/bundle/release/*.aab
+          path: target/dx/amp/release/android/app/app/build/outputs/bundle/release/*.aab
           retention-days: 30
           if-no-files-found: warn
 

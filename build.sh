@@ -3,7 +3,7 @@ set -e
 
 echo "🔨 Building Dioxus Android APK..."
 
-# Get script directory (project root)
+# Get script directory (project root) - fixed ShellCheck warnings
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 echo "📍 Project root: $SCRIPT_DIR"
 
@@ -30,8 +30,19 @@ if [ ! -f "$KEYSTORE_DIR/$storeFile" ]; then
 fi
 echo "✓ Keystore found"
 
+# Backup original Dioxus.toml BEFORE modifying it
+echo "📝 Backing up original Dioxus.toml..."
+DIOXUS_BACKUP="Dioxus.toml.backup.$(date +%s)"
+if [ -f "Dioxus.toml" ]; then
+    cp -- "Dioxus.toml" "$DIOXUS_BACKUP"
+    echo "✓ Backup created: $DIOXUS_BACKUP"
+else
+    echo "⚠️  No existing Dioxus.toml found, will create new one"
+    DIOXUS_BACKUP=""
+fi
+
 # Update Dioxus.toml with signing configuration
-echo "📝 Updating Dioxus.toml..."
+echo "📝 Updating Dioxus.toml with signing config..."
 cat > Dioxus.toml << EOF
 [application]
 name = "amp"
@@ -71,18 +82,15 @@ echo "✓ Dioxus.toml updated with signing config"
 
 # CRITICAL: Clean previous build to avoid cached gradle files
 echo "🧹 Cleaning previous build artifacts..."
-ANDROID_DIR="$SCRIPT_DIR/target/dx/amp/release/android"
-rm -rf "$ANDROID_DIR" 2>/dev/null || true
-rm -rf "$SCRIPT_DIR/android/.gradle" 2>/dev/null || true
-rm -rf "$SCRIPT_DIR/android/build" 2>/dev/null || true
+ANDROID_DIR="$SCRIPT_DIR/target/dx/amp/release/android/app"
+rm -rf -- "$ANDROID_DIR" 2>/dev/null || true
+rm -rf -- "$SCRIPT_DIR/android/app/.gradle" 2>/dev/null || true
+rm -rf -- "$SCRIPT_DIR/android/app/build" 2>/dev/null || true
 pkill -9 gradle java 2>/dev/null || true
 sleep 1
 
 # Build with Dioxus (generates fresh gradle files)
 echo "📦 Building APK with Dioxus..."
-dx build --android --release --device HQ646M01AF
-
-# Check if build succeeded, if not - apply fix and retry
 if ! dx build --android --release --device HQ646M01AF; then
     echo ""
     echo "⚠️  First build failed, applying Java 21 fix and retrying..."
@@ -93,10 +101,10 @@ if ! dx build --android --release --device HQ646M01AF; then
 
     if [ -d "$ANDROID_DIR" ]; then
         # Fix app/build.gradle.kts
-        if [ -f "$ANDROID_DIR/app/build.gradle.kts" ]; then
+        if [ -f "$ANDROID_DIR/build.gradle.kts" ]; then
             echo "  Patching: app/build.gradle.kts"
-            sed -i 's/VERSION_1_8/VERSION_21/g' "$ANDROID_DIR/app/build.gradle.kts" 2>/dev/null || true
-            sed -i 's/jvmTarget = "1.8"/jvmTarget = "21"/g' "$ANDROID_DIR/app/build.gradle.kts" 2>/dev/null || true
+            sed -i 's/VERSION_1_8/VERSION_21/g' "$ANDROID_DIR/build.gradle.kts" 2>/dev/null || true
+            sed -i 's/jvmTarget = "1.8"/jvmTarget = "21"/g' "$ANDROID_DIR/build.gradle.kts" 2>/dev/null || true
             echo "✓ Fixed app/build.gradle.kts"
         fi
 
@@ -110,31 +118,27 @@ if ! dx build --android --release --device HQ646M01AF; then
         # Verify the fixes worked
         echo ""
         echo "📋 Verifying fixes:"
-        if grep -q "VERSION_21" "$ANDROID_DIR/app/build.gradle.kts" 2>/dev/null; then
+        if grep -q "VERSION_21" "$ANDROID_DIR/build.gradle.kts" 2>/dev/null; then
             echo "✓ app/build.gradle.kts now uses Java 21"
         fi
 
         # Clean gradle cache
         echo "🧹 Cleaning gradle cache..."
-        rm -rf "$ANDROID_DIR/.gradle" 2>/dev/null || true
+        rm -rf -- "$ANDROID_DIR/.gradle" 2>/dev/null || true
         pkill -9 gradle java 2>/dev/null || true
         sleep 2
 
         # Rebuild with gradle directly
         echo ""
         echo "📦 Rebuilding with fixed gradle configuration..."
-        cd "$ANDROID_DIR"
-        ./gradlew clean assembleRelease
-
-        if ! dx build --android --release --device HQ646M01AF; then
-            echo ""
-            echo "✅ BUILD SUCCESSFUL!"
-        else
+        if ! "$ANDROID_DIR/gradlew" -p "$ANDROID_DIR" clean assembleRelease; then
             echo ""
             echo "❌ Gradle build failed even after Java 21 fix"
             echo "This might be a different issue. Check the error above."
             exit 1
         fi
+        echo ""
+        echo "✅ BUILD SUCCESSFUL!"
     else
         echo "❌ Android directory not created: $ANDROID_DIR"
         echo "This means dx build failed before generating gradle files."
@@ -158,17 +162,22 @@ APK_PATH="$(
 )"
 
 if [ -n "$APK_PATH" ]; then
-    ls -lh "$APK_PATH"
+    ls -lh -- "$APK_PATH"
     echo ""
     echo "Ready to deploy! 🚀"
 else
     echo "  APK not found at expected location"
 fi
 
-# Restore original Dioxus.toml
-echo "🔄 Restoring Dioxus.toml..."
-cd "$SCRIPT_DIR/android"
-git checkout Dioxus.toml 2>/dev/null || echo "  (Dioxus.toml not under git control)"
+# Restore original Dioxus.toml from backup
+echo "🔄 Restoring original Dioxus.toml..."
+if [ -n "$DIOXUS_BACKUP" ] && [ -f "$DIOXUS_BACKUP" ]; then
+    cp -- "$DIOXUS_BACKUP" Dioxus.toml
+    rm -f -- "$DIOXUS_BACKUP"
+    echo "✓ Restored from backup"
+else
+    echo "⚠️  No backup available, keeping current Dioxus.toml"
+fi
 
 echo ""
 echo "✅ Build complete!"

@@ -1,5 +1,5 @@
 use rayon::prelude::*;
-use rust_decimal::{Decimal, MathematicalOps};
+use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 use tokio::task::block_in_place;
 use geodesy::prelude::*;
@@ -161,7 +161,7 @@ pub fn find_closest_lines(
         .enumerate()
         .map(|(idx, point)| {
             // Log progress every 10,000 addresses (optional but helpful)
-            if idx > 0 && idx % 10000 == 0 {
+            if idx > 0 && idx % 100 == 0 {
                 println!("  Processed {} addresses...", idx);
             }
 

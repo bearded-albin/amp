@@ -3,7 +3,7 @@
 [![Android app](https://github.com/resonant-jovian/amp/actions/workflows/android-test.yml/badge.svg)](https://github.com/resonant-jovian/amp/actions/workflows/android-test.yml)
 [![Core tests](https://github.com/resonant-jovian/amp/actions/workflows/correlation-tests.yml/badge.svg)](https://github.com/resonant-jovian/amp/actions/workflows/correlation-tests.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
-[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-orange)](https://www.rust-lang.org/)
+[![Rust Edition](https://img.shields.io/badge/rust&nbsp;edition-2024%2B-orange)](https://www.rust-lang.org/)
 
 **AMP** is a production-grade geospatial correlation library written in Rust that matches street addresses to environmental parking zones in Malmö, Sweden. All so you can have an app on your phone to avoid parking tickets from the environmental parking restrictions or know that you have been ticked when you shouldn't have been, without needing internet access at that!
 

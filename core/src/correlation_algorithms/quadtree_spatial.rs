@@ -7,7 +7,7 @@ use crate::correlation_algorithms::CorrelationAlgo;
 use rust_decimal::prelude::ToPrimitive;
 
 const MAX_DEPTH: u32 = 10;
-const MAX_ITEMS_PER_NODE: usize = 8;
+const MAX_ITEMS_PER_NODE: usize = 16;
 
 pub struct QuadtreeSpatialAlgo {
     root: QuadNode,
@@ -15,7 +15,7 @@ pub struct QuadtreeSpatialAlgo {
 
 struct QuadNode {
     bounds: Bounds,
-    items: Vec<(usize, [f64; 2], [f64; 2])>, // (index, start, end)
+    items: Vec<usize>, // Keep simple index storage
     children: Option<Box<[QuadNode; 4]>>,
 }
 
@@ -104,40 +104,38 @@ impl QuadNode {
             return;
         }
         
+        // If no children, add to this node
         if self.children.is_none() {
-            self.items.push((index, start, end));
+            self.items.push(index);
             
-            // Subdivide if over capacity and not at max depth
+            // Only subdivide if we exceed capacity and not at max depth
             if self.items.len() > MAX_ITEMS_PER_NODE && depth < MAX_DEPTH {
-                self.subdivide_node(depth);
+                self.subdivide_node(depth, start, end);
             }
         } else {
-            // Insert into children
+            // Has children - insert into all children that intersect
+            // Keep in parent too for boundary-crossing lines
+            self.items.push(index);
+            
             if let Some(ref mut children) = self.children {
                 for child in children.iter_mut() {
-                    child.insert(index, start, end, depth + 1);
+                    // Only insert into children this line actually intersects
+                    if child.bounds.intersects_line(start, end) {
+                        child.insert(index, start, end, depth + 1);
+                    }
                 }
             }
         }
     }
     
-    fn subdivide_node(&mut self, depth: u32) {
+    fn subdivide_node(&mut self, depth: u32, start: [f64; 2], end: [f64; 2]) {
         let sub_bounds = self.bounds.subdivide();
-        let mut children = Box::new([
+        let children = Box::new([
             QuadNode::new(sub_bounds[0]),
             QuadNode::new(sub_bounds[1]),
             QuadNode::new(sub_bounds[2]),
             QuadNode::new(sub_bounds[3]),
         ]);
-        
-        // CRITICAL FIX: Redistribute existing items to children
-        let items_to_redistribute = std::mem::take(&mut self.items);
-        
-        for (idx, start, end) in items_to_redistribute {
-            for child in children.iter_mut() {
-                child.insert(idx, start, end, depth + 1);
-            }
-        }
         
         self.children = Some(children);
     }
@@ -148,9 +146,7 @@ impl QuadNode {
         }
         
         // Add items from this node
-        for (idx, _, _) in &self.items {
-            results.push(*idx);
-        }
+        results.extend(&self.items);
         
         // Recursively query children
         if let Some(ref children) = self.children {
@@ -163,7 +159,7 @@ impl QuadNode {
 
 impl QuadtreeSpatialAlgo {
     pub fn new(parking_lines: &[MiljoeDataClean]) -> Self {
-        // Calculate bounds
+        // Calculate bounds with proper padding
         let mut min_x = f64::INFINITY;
         let mut min_y = f64::INFINITY;
         let mut max_x = f64::NEG_INFINITY;
@@ -224,7 +220,7 @@ impl CorrelationAlgo for QuadtreeSpatialAlgo {
         let mut candidates = Vec::new();
         self.root.query_point(point, &mut candidates);
         
-        // Remove duplicates (lines may be in multiple nodes)
+        // Remove duplicates (items can be in multiple nodes)
         candidates.sort_unstable();
         candidates.dedup();
         

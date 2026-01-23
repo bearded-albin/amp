@@ -1,5 +1,6 @@
 use crate::structs::*;
 use crate::correlation_algorithms::CorrelationAlgo;
+use rust_decimal::prelude::ToPrimitive;
 
 pub struct RTreeSpatialAlgo {
     bounds: Vec<([f64; 2], [f64; 2], usize)>,
@@ -106,5 +107,9 @@ impl CorrelationAlgo for RTreeSpatialAlgo {
         }
 
         closest
+    }
+
+    fn name(&self) -> &'static str {
+        "R-Tree Spatial Index"
     }
 }

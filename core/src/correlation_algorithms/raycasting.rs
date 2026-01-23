@@ -1,5 +1,6 @@
 use crate::structs::*;
 use crate::correlation_algorithms::CorrelationAlgo;
+use rust_decimal::prelude::ToPrimitive;
 
 pub struct RaycastingAlgo;
 
@@ -107,5 +108,9 @@ impl CorrelationAlgo for RaycastingAlgo {
         }
 
         closest
+    }
+
+    fn name(&self) -> &'static str {
+        "Raycasting (36-ray)"
     }
 }

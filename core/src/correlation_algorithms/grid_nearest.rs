@@ -1,6 +1,7 @@
 use crate::structs::*;
 use crate::correlation_algorithms::CorrelationAlgo;
 use std::collections::HashMap;
+use rust_decimal::prelude::ToPrimitive;
 
 pub struct GridNearestAlgo {
     grid: HashMap<(i32, i32), Vec<usize>>,
@@ -127,5 +128,9 @@ impl CorrelationAlgo for GridNearestAlgo {
         }
 
         closest
+    }
+
+    fn name(&self) -> &'static str {
+        "Grid Nearest Neighbor"
     }
 }

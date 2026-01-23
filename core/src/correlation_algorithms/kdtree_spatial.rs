@@ -1,5 +1,6 @@
 use crate::structs::*;
 use crate::correlation_algorithms::CorrelationAlgo;
+use rust_decimal::prelude::ToPrimitive;
 
 pub struct KDTreeSpatialAlgo {
     root: Option<Box<KDNode>>,
@@ -155,5 +156,9 @@ impl CorrelationAlgo for KDTreeSpatialAlgo {
         }
 
         None
+    }
+
+    fn name(&self) -> &'static str {
+        "KD-Tree Spatial Index"
     }
 }

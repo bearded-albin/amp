@@ -1,5 +1,6 @@
 use crate::structs::*;
 use crate::correlation_algorithms::CorrelationAlgo;
+use rust_decimal::prelude::ToPrimitive;
 
 pub struct DistanceBasedAlgo;
 
@@ -92,5 +93,9 @@ impl CorrelationAlgo for DistanceBasedAlgo {
         }
 
         closest
+    }
+
+    fn name(&self) -> &'static str {
+        "Distance-Based"
     }
 }

@@ -120,6 +120,7 @@ fn distance_point_to_line_segment(point: [f64; 2], line_start: [f64; 2], line_en
 
 #[cfg(test)]
 mod tests {
+    use rstar::RTreeObject;
     use super::*;
 
     #[test]

@@ -96,18 +96,18 @@ impl KDNode {
         };
         
         // Search primary side
-        if let Some(ref node) = primary {
+        if let Some(node) = primary {
             node.query_nearest(point, lines, best);
         }
         
         // Check if we need to search secondary side
         let should_search_secondary = match best {
             None => true,
-            Some((_, best_dist)) => diff * diff < best_dist * best_dist,
+            Some((_, best_dist)) => diff * diff < (*best_dist * *best_dist),
         };
         
         if should_search_secondary {
-            if let Some(ref node) = secondary {
+            if let Some(node) = secondary {
                 node.query_nearest(point, lines, best);
             }
         }

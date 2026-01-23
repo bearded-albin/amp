@@ -121,9 +121,9 @@ impl QuadNode {
         }
     }
     
-    fn subdivide_node(&mut self, depth: u32) {
+    fn subdivide_node(&mut self, _depth: u32) {
         let sub_bounds = self.bounds.subdivide();
-        let mut children = Box::new([
+        let children = Box::new([
             QuadNode::new(sub_bounds[0]),
             QuadNode::new(sub_bounds[1]),
             QuadNode::new(sub_bounds[2]),

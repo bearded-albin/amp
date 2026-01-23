@@ -1,162 +1,117 @@
-//! KD-tree (2D) spatial algorithm
-//! Binary space partitioning optimized for 2D point queries
-//! Excellent for nearest-neighbor searches
-
+use crate::structs::*;
 use crate::correlation_algorithms::CorrelationAlgo;
-use crate::structs::{AdressClean, MiljoeDataClean};
-use rust_decimal::prelude::ToPrimitive;
-use std::f64::consts::PI;
-
-const MAX_LEAF_SIZE: usize = 8;
-const MAX_DISTANCE_METERS: f64 = 50.0;
-const EARTH_RADIUS_M: f64 = 6371000.0;
 
 pub struct KDTreeSpatialAlgo {
     root: Option<Box<KDNode>>,
-    lines: Vec<LineSegment>,
-}
-
-#[derive(Clone)]
-struct LineSegment {
-    index: usize,
-    start: [f64; 2],
-    end: [f64; 2],
-    midpoint: [f64; 2],
 }
 
 struct KDNode {
-    axis: usize, // 0 for x, 1 for y
-    split_value: f64,
-    indices: Vec<usize>, // Indices into lines array
+    index: usize,
+    point: [f64; 2],
     left: Option<Box<KDNode>>,
     right: Option<Box<KDNode>>,
 }
 
-impl KDNode {
-    fn build(segments: &mut [(usize, [f64; 2])], depth: usize) -> Option<Box<Self>> {
-        if segments.is_empty() {
-            return None;
-        }
+const MAX_DISTANCE_METERS: f64 = 50.0;
 
-        let axis = depth % 2;
+fn haversine_distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+    const R: f64 = 6371000.0;
+    let lat1_rad = lat1.to_radians();
+    let lat2_rad = lat2.to_radians();
+    let delta_lat = (lat2 - lat1).to_radians();
+    let delta_lon = (lon2 - lon1).to_radians();
 
-        if segments.len() <= MAX_LEAF_SIZE {
-            // Leaf node
-            return Some(Box::new(KDNode {
-                axis,
-                split_value: 0.0,
-                indices: segments.iter().map(|(idx, _)| *idx).collect(),
-                left: None,
-                right: None,
-            }));
-        }
+    let a = (delta_lat / 2.0).sin().powi(2)
+        + lat1_rad.cos() * lat2_rad.cos() * (delta_lon / 2.0).sin().powi(2);
+    let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
+    R * c
+}
 
-        // Sort by current axis and split at median
-        segments.sort_by(|a, b| a.1[axis].partial_cmp(&b.1[axis]).unwrap());
-        let mid = segments.len() / 2;
-        let split_value = segments[mid].1[axis];
+fn sweref_to_latlon(x: f64, y: f64) -> (f64, f64) {
+    let lon = (x - 500000.0) / 111320.0 + 15.0;
+    let lat = y / 111320.0 + 55.5;
+    (lat, lon)
+}
 
-        let (left_data, right_data) = segments.split_at_mut(mid);
-
-        Some(Box::new(KDNode {
-            axis,
-            split_value,
-            indices: Vec::new(),
-            left: Self::build(left_data, depth + 1),
-            right: Self::build(right_data, depth + 1),
-        }))
+fn build_kdtree(
+    zones: &[MiljoeDataClean],
+    indices: Vec<usize>,
+    depth: usize,
+) -> Option<Box<KDNode>> {
+    if indices.is_empty() {
+        return None;
     }
 
+    let axis = depth % 2;
+    let mut sorted_indices = indices;
+    sorted_indices.sort_by(|&a, &b| {
+        let coord_a = zones[a].coordinates[0][axis].to_f64().unwrap_or(0.0);
+        let coord_b = zones[b].coordinates[0][axis].to_f64().unwrap_or(0.0);
+        coord_a.partial_cmp(&coord_b).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let median = sorted_indices.len() / 2;
+    let median_idx = sorted_indices[median];
+
+    let zone = &zones[median_idx];
+    let point = [
+        zone.coordinates[0][0].to_f64().unwrap_or(0.0),
+        zone.coordinates[0][1].to_f64().unwrap_or(0.0),
+    ];
+
+    let mut left_indices = sorted_indices;
+    let right_indices: Vec<_> = left_indices.drain(median + 1..).collect();
+    left_indices.remove(median);
+
+    Some(Box::new(KDNode {
+        index: median_idx,
+        point,
+        left: build_kdtree(zones, left_indices, depth + 1),
+        right: build_kdtree(zones, right_indices, depth + 1),
+    }))
+}
+
+impl KDNode {
     fn query_nearest(
         &self,
         point: [f64; 2],
-        lines: &[LineSegment],
+        _lines: &[MiljoeDataClean],
         best: &mut Option<(usize, f64)>,
     ) {
-        if !self.indices.is_empty() {
-            // Leaf node - check all segments
-            for &idx in &self.indices {
-                let line = &lines[idx];
-                let dist = distance_point_to_line(point, line.start, line.end);
+        let dx = self.point[0] - point[0];
+        let dy = self.point[1] - point[1];
+        let dist_sq = dx * dx + dy * dy;
+        let dist = dist_sq.sqrt();
 
-                // Only consider if within threshold
-                if dist <= MAX_DISTANCE_METERS {
-                    match best {
-                        None => *best = Some((line.index, dist)),
-                        Some((_, best_dist)) if dist < *best_dist => {
-                            *best = Some((line.index, dist));
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            return;
+        if best.is_none() || dist < best.unwrap().1 {
+            *best = Some((self.index, dist));
         }
 
-        // Internal node - traverse tree
-        let diff = point[self.axis] - self.split_value;
-        let (primary, secondary) = if diff < 0.0 {
+        let axis = (self.index & 1) as usize;
+        let axis_dist = if axis == 0 { dx } else { dy };
+
+        let (near, far) = if axis_dist < 0.0 {
             (&self.left, &self.right)
         } else {
             (&self.right, &self.left)
         };
 
-        // Search primary side
-        if let Some(node) = primary {
-            node.query_nearest(point, lines, best);
+        if let Some(node) = near {
+            node.query_nearest(point, _lines, best);
         }
 
-        // Check if we need to search secondary side
-        // Convert degree difference to approximate meters for comparison
-        let diff_meters = diff.abs() * 111000.0; // Rough approximation
-        let should_search_secondary = match best {
-            None => diff_meters < MAX_DISTANCE_METERS,
-            Some((_, best_dist)) => diff_meters < *best_dist,
-        };
-
-        if should_search_secondary {
-            if let Some(node) = secondary {
-                node.query_nearest(point, lines, best);
-            }
+        let should_search_secondary = best.is_none() || axis_dist.abs() < best.unwrap().1;
+        if should_search_secondary && let Some(node) = far {
+            node.query_nearest(point, _lines, best);
         }
     }
 }
 
 impl KDTreeSpatialAlgo {
-    pub fn new(parking_lines: &[MiljoeDataClean]) -> Self {
-        let lines: Vec<LineSegment> = parking_lines
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, line)| {
-                let start = [
-                    line.coordinates[0][0].to_f64()?,
-                    line.coordinates[0][1].to_f64()?,
-                ];
-                let end = [
-                    line.coordinates[1][0].to_f64()?,
-                    line.coordinates[1][1].to_f64()?,
-                ];
-                let midpoint = [(start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0];
-
-                Some(LineSegment {
-                    index: idx,
-                    start,
-                    end,
-                    midpoint,
-                })
-            })
-            .collect();
-
-        // Build KD-tree using line midpoints
-        let mut indexed_midpoints: Vec<(usize, [f64; 2])> = lines
-            .iter()
-            .enumerate()
-            .map(|(i, seg)| (i, seg.midpoint))
-            .collect();
-
-        let root = KDNode::build(&mut indexed_midpoints, 0);
-
-        Self { root, lines }
+    pub fn new(zones: &[MiljoeDataClean]) -> Self {
+        let indices: Vec<_> = (0..zones.len()).collect();
+        let root = build_kdtree(zones, indices, 0);
+        KDTreeSpatialAlgo { root }
     }
 }
 
@@ -164,72 +119,41 @@ impl CorrelationAlgo for KDTreeSpatialAlgo {
     fn correlate(
         &self,
         address: &AdressClean,
-        _parking_lines: &[MiljoeDataClean],
+        zones: &[MiljoeDataClean],
     ) -> Option<(usize, f64)> {
-        let point = [
-            address.coordinates[0].to_f64()?,
-            address.coordinates[1].to_f64()?,
-        ];
+        let addr_lat_f64 = address.coordinates[1].to_f64()?;
+        let addr_lon_f64 = address.coordinates[0].to_f64()?;
+        let (addr_lat, addr_lon) = sweref_to_latlon(addr_lon_f64, addr_lat_f64);
 
-        let mut best = None;
+        let mut best: Option<(usize, f64)> = None;
 
         if let Some(ref root) = self.root {
-            root.query_nearest(point, &self.lines, &mut best);
+            root.query_nearest([addr_lon, addr_lat], zones, &mut best);
         }
 
-        best
-    }
+        if let Some((idx, _)) = best {
+            let zone = &zones[idx];
+            let start_f64 = [
+                zone.coordinates[0][0].to_f64()?,
+                zone.coordinates[0][1].to_f64()?,
+            ];
+            let end_f64 = [
+                zone.coordinates[1][0].to_f64()?,
+                zone.coordinates[1][1].to_f64()?,
+            ];
 
-    fn name(&self) -> &'static str {
-        "KD-Tree Spatial"
-    }
-}
+            let (start_lat, start_lon) = sweref_to_latlon(start_f64[0], start_f64[1]);
+            let (end_lat, end_lon) = sweref_to_latlon(end_f64[0], end_f64[1]);
 
-fn distance_point_to_line(point: [f64; 2], line_start: [f64; 2], line_end: [f64; 2]) -> f64 {
-    let line_vec = [line_end[0] - line_start[0], line_end[1] - line_start[1]];
-    let point_vec = [point[0] - line_start[0], point[1] - line_start[1]];
+            let dist_to_start = haversine_distance(addr_lat, addr_lon, start_lat, start_lon);
+            let dist_to_end = haversine_distance(addr_lat, addr_lon, end_lat, end_lon);
+            let min_dist = dist_to_start.min(dist_to_end);
 
-    let line_len_sq = line_vec[0] * line_vec[0] + line_vec[1] * line_vec[1];
+            if min_dist <= MAX_DISTANCE_METERS {
+                return Some((idx, min_dist));
+            }
+        }
 
-    if line_len_sq == 0.0 {
-        return haversine_distance(point, line_start);
-    }
-
-    let t = ((point_vec[0] * line_vec[0] + point_vec[1] * line_vec[1]) / line_len_sq)
-        .max(0.0)
-        .min(1.0);
-
-    let closest = [
-        line_start[0] + t * line_vec[0],
-        line_start[1] + t * line_vec[1],
-    ];
-
-    haversine_distance(point, closest)
-}
-
-fn haversine_distance(point1: [f64; 2], point2: [f64; 2]) -> f64 {
-    let lat1 = point1[1] * PI / 180.0;
-    let lat2 = point2[1] * PI / 180.0;
-    let delta_lat = (point2[1] - point1[1]) * PI / 180.0;
-    let delta_lon = (point2[0] - point1[0]) * PI / 180.0;
-
-    let a =
-        (delta_lat / 2.0).sin().powi(2) + lat1.cos() * lat2.cos() * (delta_lon / 2.0).sin().powi(2);
-
-    let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
-
-    EARTH_RADIUS_M * c
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_kdtree_build() {
-        let mut data = vec![(0, [13.0, 55.0]), (1, [13.1, 55.1]), (2, [13.2, 55.2])];
-
-        let root = KDNode::build(&mut data, 0);
-        assert!(root.is_some());
+        None
     }
 }

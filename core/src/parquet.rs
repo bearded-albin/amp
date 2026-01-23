@@ -143,11 +143,12 @@ pub fn write_correlation_parquet(data: Vec<CorrelationResult>) -> anyhow::Result
 
     for result in data {
         let key = result.postnummer.clone();
-        grouped.entry(key).or_insert_with(Vec::new).push(result);
+        grouped.entry(key).or_default().push(result);
     }
 
     let path = "correlation_results.parquet";
-    let file = File::create(path).map_err(|e| anyhow::anyhow!("Failed to create file: {}", e))?;
+    let file = File::create(path)
+        .map_err(|e| anyhow::anyhow!("Failed to create file: {}", e))?;
 
     let props = WriterProperties::builder()
         .set_statistics_enabled(EnabledStatistics::None)
@@ -204,13 +205,11 @@ pub fn write_correlation_parquet(data: Vec<CorrelationResult>) -> anyhow::Result
         )
         .map_err(|e| anyhow::anyhow!("Failed to create record batch: {}", e))?;
 
-        writer
-            .write(&batch)
+        writer.write(&batch)
             .map_err(|e| anyhow::anyhow!("Failed to write batch: {}", e))?;
     }
 
-    writer
-        .close()
+    writer.close()
         .map_err(|e| anyhow::anyhow!("Failed to close writer: {}", e))?;
 
     Ok(())

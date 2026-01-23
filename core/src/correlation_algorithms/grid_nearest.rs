@@ -8,6 +8,7 @@ use rust_decimal::prelude::ToPrimitive;
 use std::collections::HashMap;
 
 const CELL_SIZE: f64 = 50.0; // 50 meters (smaller than overlapping chunks)
+const MAX_DISTANCE_METERS: f64 = 50.0;
 
 pub struct GridNearestAlgo {
     grid: HashMap<(i32, i32), Vec<usize>>,
@@ -131,12 +132,15 @@ impl CorrelationAlgo for GridNearestAlgo {
                     
                     let dist = distance_point_to_line(point, start, end);
                     
-                    match best {
-                        None => best = Some((idx, dist)),
-                        Some((_, best_dist)) if dist < best_dist => {
-                            best = Some((idx, dist));
+                    // Only consider if within threshold
+                    if dist <= MAX_DISTANCE_METERS {
+                        match best {
+                            None => best = Some((idx, dist)),
+                            Some((_, best_dist)) if dist < best_dist => {
+                                best = Some((idx, dist));
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
             }

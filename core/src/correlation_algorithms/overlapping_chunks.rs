@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 const CHUNK_SIZE: f64 = 100.0; // 100 meter chunks
 const OVERLAP: f64 = 50.0;     // 50 meter overlap
+const MAX_DISTANCE_METERS: f64 = 50.0;
 
 pub struct OverlappingChunksAlgo {
     grid: SpatialGrid,
@@ -107,7 +108,13 @@ impl CorrelationAlgo for OverlappingChunksAlgo {
                 ];
                 
                 let dist = distance_point_to_line(point, line_start, line_end);
-                Some((idx, dist))
+                
+                // Only include if within threshold
+                if dist <= MAX_DISTANCE_METERS {
+                    Some((idx, dist))
+                } else {
+                    None
+                }
             })
             .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
     }

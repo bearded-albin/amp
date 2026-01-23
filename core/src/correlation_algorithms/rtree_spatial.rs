@@ -7,6 +7,8 @@ use crate::correlation_algorithms::CorrelationAlgo;
 use rust_decimal::prelude::ToPrimitive;
 use rstar::{RTree, AABB, PointDistance};
 
+const MAX_DISTANCE_METERS: f64 = 50.0;
+
 pub struct RTreeSpatialAlgo {
     rtree: RTree<IndexedLineSegment>,
 }
@@ -83,7 +85,12 @@ impl CorrelationAlgo for RTreeSpatialAlgo {
         
         let dist = distance_point_to_line_segment(point, nearest.start, nearest.end);
         
-        Some((nearest.index, dist))
+        // Only return if within threshold
+        if dist <= MAX_DISTANCE_METERS {
+            Some((nearest.index, dist))
+        } else {
+            None
+        }
     }
     
     fn name(&self) -> &'static str {
@@ -120,7 +127,6 @@ fn distance_point_to_line_segment(point: [f64; 2], line_start: [f64; 2], line_en
 
 #[cfg(test)]
 mod tests {
-    use rstar::RTreeObject;
     use super::*;
 
     #[test]

@@ -7,6 +7,7 @@ use crate::correlation_algorithms::CorrelationAlgo;
 use rust_decimal::prelude::ToPrimitive;
 
 const MAX_LEAF_SIZE: usize = 8;
+const MAX_DISTANCE_METERS: f64 = 50.0;
 
 pub struct KDTreeSpatialAlgo {
     root: Option<Box<KDNode>>,
@@ -76,12 +77,15 @@ impl KDNode {
                 let line = &lines[idx];
                 let dist = distance_point_to_line(point, line.start, line.end);
                 
-                match best {
-                    None => *best = Some((line.index, dist)),
-                    Some((_, best_dist)) if dist < *best_dist => {
-                        *best = Some((line.index, dist));
+                // Only consider if within threshold
+                if dist <= MAX_DISTANCE_METERS {
+                    match best {
+                        None => *best = Some((line.index, dist)),
+                        Some((_, best_dist)) if dist < *best_dist => {
+                            *best = Some((line.index, dist));
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
             return;
@@ -96,18 +100,18 @@ impl KDNode {
         };
         
         // Search primary side
-        if let Some(node) = primary {
+        if let Some(ref node) = primary {
             node.query_nearest(point, lines, best);
         }
         
         // Check if we need to search secondary side
         let should_search_secondary = match best {
-            None => true,
-            Some((_, best_dist)) => diff * diff < (*best_dist * *best_dist),
+            None => diff * diff < MAX_DISTANCE_METERS * MAX_DISTANCE_METERS,
+            Some((_, best_dist)) => diff * diff < best_dist * best_dist,
         };
         
         if should_search_secondary {
-            if let Some(node) = secondary {
+            if let Some(ref node) = secondary {
                 node.query_nearest(point, lines, best);
             }
         }

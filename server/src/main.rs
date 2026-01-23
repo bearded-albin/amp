@@ -4,7 +4,9 @@
 use amp_core::api::api;
 use amp_core::structs::{AdressClean, MiljoeDataClean};
 use amp_core::correlation_algorithms::{
-    DistanceBasedAlgo, RaycastingAlgo, OverlappingChunksAlgo, LinearAlgebraAlgo, CorrelationAlgo
+    DistanceBasedAlgo, RaycastingAlgo, OverlappingChunksAlgo, 
+    RTreeSpatialAlgo, QuadtreeSpatialAlgo, KDTreeSpatialAlgo, GridNearestAlgo,
+    CorrelationAlgo
 };
 use amp_core::checksum::DataChecksum;
 use amp_core::benchmark::Benchmarker;
@@ -24,7 +26,7 @@ struct Cli {
 enum Commands {
     /// Run correlation with specified algorithm
     Correlate {
-        #[arg(short, long, value_enum, default_value_t = AlgorithmChoice::DistanceBased)]
+        #[arg(short, long, value_enum, default_value_t = AlgorithmChoice::RTree)]
         algorithm: AlgorithmChoice,
         
         #[arg(short, long, help = "Path to miljö parking JSON file (optional)")]
@@ -64,8 +66,14 @@ enum AlgorithmChoice {
     Raycasting,
     #[value(name = "overlapping-chunks")]
     OverlappingChunks,
-    #[value(name = "linear-algebra")]
-    LinearAlgebra,
+    #[value(name = "rtree")]
+    RTree,
+    #[value(name = "quadtree")]
+    Quadtree,
+    #[value(name = "kdtree")]
+    KDTree,
+    #[value(name = "grid")]
+    Grid,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -113,8 +121,20 @@ fn run_correlation(
             let algo = OverlappingChunksAlgo::new(&zones);
             correlate_all(&addresses, &zones, &algo)
         }
-        AlgorithmChoice::LinearAlgebra => {
-            let algo = LinearAlgebraAlgo;
+        AlgorithmChoice::RTree => {
+            let algo = RTreeSpatialAlgo::new(&zones);
+            correlate_all(&addresses, &zones, &algo)
+        }
+        AlgorithmChoice::Quadtree => {
+            let algo = QuadtreeSpatialAlgo::new(&zones);
+            correlate_all(&addresses, &zones, &algo)
+        }
+        AlgorithmChoice::KDTree => {
+            let algo = KDTreeSpatialAlgo::new(&zones);
+            correlate_all(&addresses, &zones, &algo)
+        }
+        AlgorithmChoice::Grid => {
+            let algo = GridNearestAlgo::new(&zones);
             correlate_all(&addresses, &zones, &algo)
         }
     };

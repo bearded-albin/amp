@@ -1,5 +1,5 @@
-use crate::structs::*;
 use crate::correlation_algorithms::CorrelationAlgo;
+use crate::structs::*;
 use rust_decimal::prelude::ToPrimitive;
 
 pub struct KDTreeSpatialAlgo {
@@ -48,7 +48,9 @@ fn build_kdtree(
     sorted_indices.sort_by(|&a, &b| {
         let coord_a = zones[a].coordinates[0][axis].to_f64().unwrap_or(0.0);
         let coord_b = zones[b].coordinates[0][axis].to_f64().unwrap_or(0.0);
-        coord_a.partial_cmp(&coord_b).unwrap_or(std::cmp::Ordering::Equal)
+        coord_a
+            .partial_cmp(&coord_b)
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
 
     let median = sorted_indices.len() / 2;
@@ -88,7 +90,7 @@ impl KDNode {
             *best = Some((self.index, dist));
         }
 
-        let axis = (self.index & 1) as usize;
+        let axis = self.index & 1;
         let axis_dist = if axis == 0 { dx } else { dy };
 
         let (near, far) = if axis_dist < 0.0 {
@@ -117,11 +119,7 @@ impl KDTreeSpatialAlgo {
 }
 
 impl CorrelationAlgo for KDTreeSpatialAlgo {
-    fn correlate(
-        &self,
-        address: &AdressClean,
-        zones: &[MiljoeDataClean],
-    ) -> Option<(usize, f64)> {
+    fn correlate(&self, address: &AdressClean, zones: &[MiljoeDataClean]) -> Option<(usize, f64)> {
         let addr_lat_f64 = address.coordinates[1].to_f64()?;
         let addr_lon_f64 = address.coordinates[0].to_f64()?;
         let (addr_lat, addr_lon) = sweref_to_latlon(addr_lon_f64, addr_lat_f64);

@@ -247,14 +247,14 @@ fn run_correlation(algorithm: AlgorithmChoice) -> Result<(), Box<dyn std::error:
 
     Ok(())
 }
-
+type Dat = Result<Vec<(String, f64, String)>, Box<dyn std::error::Error>>;
 /// Correlate addresses with a dataset using the specified algorithm
-fn correlate_dataset<'a>(
+fn correlate_dataset(
     algorithm: &AlgorithmChoice,
-    addresses: &'a [AdressClean],
+    addresses: &[AdressClean],
     zones: &[MiljoeDataClean],
     pb: &ProgressBar,
-) -> Result<Vec<(String, f64, String)>, Box<dyn std::error::Error>> {
+) -> Dat {
     let counter = Arc::new(AtomicUsize::new(0));
 
     let results: Vec<_> = match algorithm {
@@ -267,7 +267,7 @@ fn correlate_dataset<'a>(
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count % 100 == 0 || count == addresses.len() {
+                    if count.is_multiple_of(100) || count == addresses.len() {
                         pb.set_position(count as u64);
                     }
 
@@ -284,7 +284,7 @@ fn correlate_dataset<'a>(
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count % 100 == 0 || count == addresses.len() {
+                    if count.is_multiple_of(100) || count == addresses.len() {
                         pb.set_position(count as u64);
                     }
 
@@ -301,7 +301,7 @@ fn correlate_dataset<'a>(
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count % 100 == 0 || count == addresses.len() {
+                    if count.is_multiple_of(100) || count == addresses.len() {
                         pb.set_position(count as u64);
                     }
 
@@ -318,7 +318,7 @@ fn correlate_dataset<'a>(
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count % 100 == 0 || count == addresses.len() {
+                    if count.is_multiple_of(100) || count == addresses.len() {
                         pb.set_position(count as u64);
                     }
 
@@ -335,7 +335,7 @@ fn correlate_dataset<'a>(
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count % 100 == 0 || count == addresses.len() {
+                    if count.is_multiple_of(100) || count == addresses.len() {
                         pb.set_position(count as u64);
                     }
 
@@ -352,7 +352,7 @@ fn correlate_dataset<'a>(
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count % 100 == 0 || count == addresses.len() {
+                    if count.is_multiple_of(100) || count == addresses.len() {
                         pb.set_position(count as u64);
                     }
 
@@ -423,7 +423,7 @@ fn run_benchmark(sample_size: usize) -> Result<(), Box<dyn std::error::Error>> {
     // Create multi-progress for all algorithms
     let multi_pb = MultiProgress::new();
 
-    let algorithms = vec![
+    let algorithms = [
         "Distance-Based",
         "Raycasting",
         "Overlapping Chunks",
@@ -465,6 +465,10 @@ fn run_benchmark(sample_size: usize) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+type Alg<'a> = Vec<(
+    &'a str,
+    fn(&Benchmarker, &[AdressClean], &ProgressBar, &AtomicUsize, &Arc<AtomicUsize>) -> (),
+)>;
 fn benchmark_all_with_progress(
     benchmarker: &Benchmarker,
     sample_size: Option<usize>,
@@ -477,10 +481,7 @@ fn benchmark_all_with_progress(
 
     let mut results = Vec::new();
 
-    let algos: Vec<(
-        &str,
-        fn(&Benchmarker, &[AdressClean], &ProgressBar, &AtomicUsize, &Arc<AtomicUsize>) -> (),
-    )> = vec![
+    let algos: Alg = vec![
         ("Distance-Based", |bm, addrs, pb, matches, counter| {
             let algo = DistanceBasedAlgo;
             run_single_benchmark(
@@ -602,7 +603,7 @@ fn run_single_benchmark<A: CorrelationAlgo + Sync>(
         }
 
         let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-        if count % 5 == 0 || count == addresses.len() {
+        if count.is_multiple_of(5) || count == addresses.len() {
             pb.set_position(count as u64);
         }
     });

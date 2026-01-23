@@ -1,7 +1,7 @@
-use crate::structs::*;
 use crate::correlation_algorithms::CorrelationAlgo;
-use std::collections::HashMap;
+use crate::structs::*;
 use rust_decimal::prelude::ToPrimitive;
+use std::collections::HashMap;
 
 pub struct GridNearestAlgo {
     grid: HashMap<(i32, i32), Vec<usize>>,
@@ -31,10 +31,13 @@ fn sweref_to_latlon(x: f64, y: f64) -> (f64, f64) {
 }
 
 fn get_grid_cell(x: f64, y: f64, cell_size: f64) -> (i32, i32) {
-    ((x / cell_size).floor() as i32, (y / cell_size).floor() as i32)
+    (
+        (x / cell_size).floor() as i32,
+        (y / cell_size).floor() as i32,
+    )
 }
 
-fn distance_point_to_segment(point: [f64; 2], start: [f64; 2], end: [f64; 2]) -> f64 {
+fn _distance_point_to_segment(point: [f64; 2], start: [f64; 2], end: [f64; 2]) -> f64 {
     let point_vec = [point[0] - start[0], point[1] - start[1]];
     let line_vec = [end[0] - start[0], end[1] - start[1]];
     let line_len_sq = line_vec[0] * line_vec[0] + line_vec[1] * line_vec[1];
@@ -43,8 +46,8 @@ fn distance_point_to_segment(point: [f64; 2], start: [f64; 2], end: [f64; 2]) ->
         return (point_vec[0] * point_vec[0] + point_vec[1] * point_vec[1]).sqrt();
     }
 
-    let t = ((point_vec[0] * line_vec[0] + point_vec[1] * line_vec[1]) / line_len_sq)
-        .clamp(0.0, 1.0);
+    let t =
+        ((point_vec[0] * line_vec[0] + point_vec[1] * line_vec[1]) / line_len_sq).clamp(0.0, 1.0);
     let proj = [start[0] + t * line_vec[0], start[1] + t * line_vec[1]];
     let diff = [point[0] - proj[0], point[1] - proj[1]];
 
@@ -78,11 +81,7 @@ impl GridNearestAlgo {
 }
 
 impl CorrelationAlgo for GridNearestAlgo {
-    fn correlate(
-        &self,
-        address: &AdressClean,
-        zones: &[MiljoeDataClean],
-    ) -> Option<(usize, f64)> {
+    fn correlate(&self, address: &AdressClean, zones: &[MiljoeDataClean]) -> Option<(usize, f64)> {
         let addr_x = address.coordinates[0].to_f64()?;
         let addr_y = address.coordinates[1].to_f64()?;
         let addr_cell = get_grid_cell(addr_x, addr_y, self.cell_size);
@@ -113,14 +112,15 @@ impl CorrelationAlgo for GridNearestAlgo {
                         let (start_lat, start_lon) = sweref_to_latlon(start_f64[0], start_f64[1]);
                         let (end_lat, end_lon) = sweref_to_latlon(end_f64[0], end_f64[1]);
 
-                        let dist_to_start = haversine_distance(addr_lat, addr_lon, start_lat, start_lon);
+                        let dist_to_start =
+                            haversine_distance(addr_lat, addr_lon, start_lat, start_lon);
                         let dist_to_end = haversine_distance(addr_lat, addr_lon, end_lat, end_lon);
                         let min_dist = dist_to_start.min(dist_to_end);
 
-                        if min_dist <= MAX_DISTANCE_METERS {
-                            if closest.is_none() || min_dist < closest.unwrap().1 {
-                                closest = Some((idx, min_dist));
-                            }
+                        if min_dist <= MAX_DISTANCE_METERS
+                            && (closest.is_none() || min_dist < closest.unwrap().1)
+                        {
+                            closest = Some((idx, min_dist))
                         }
                     }
                 }

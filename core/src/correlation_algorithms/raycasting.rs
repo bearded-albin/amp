@@ -1,5 +1,5 @@
-use crate::structs::*;
 use crate::correlation_algorithms::CorrelationAlgo;
+use crate::structs::*;
 use rust_decimal::prelude::ToPrimitive;
 
 pub struct RaycastingAlgo;
@@ -54,11 +54,7 @@ fn line_intersection(p1: [f64; 2], p2: [f64; 2], p3: [f64; 2], p4: [f64; 2]) -> 
 }
 
 impl CorrelationAlgo for RaycastingAlgo {
-    fn correlate(
-        &self,
-        address: &AdressClean,
-        zones: &[MiljoeDataClean],
-    ) -> Option<(usize, f64)> {
+    fn correlate(&self, address: &AdressClean, zones: &[MiljoeDataClean]) -> Option<(usize, f64)> {
         let addr_lat_f64 = address.coordinates[1].to_f64()?;
         let addr_lon_f64 = address.coordinates[0].to_f64()?;
         let (addr_lat, addr_lon) = sweref_to_latlon(addr_lon_f64, addr_lat_f64);
@@ -82,10 +78,7 @@ impl CorrelationAlgo for RaycastingAlgo {
             let mut min_dist = f64::INFINITY;
             for ray_idx in 0..36 {
                 let angle = (ray_idx as f64) * std::f64::consts::TAU / 36.0;
-                let ray_end = [
-                    addr_lon + angle.cos() * 0.01,
-                    addr_lat + angle.sin() * 0.01,
-                ];
+                let ray_end = [addr_lon + angle.cos() * 0.01, addr_lat + angle.sin() * 0.01];
 
                 if let Some(_intersection) = line_intersection(
                     [addr_lon, addr_lat],
@@ -93,17 +86,18 @@ impl CorrelationAlgo for RaycastingAlgo {
                     [start_lon, start_lat],
                     [end_lon, end_lat],
                 ) {
-                    let dist_to_start = haversine_distance(addr_lat, addr_lon, start_lat, start_lon);
+                    let dist_to_start =
+                        haversine_distance(addr_lat, addr_lon, start_lat, start_lon);
                     let dist_to_end = haversine_distance(addr_lat, addr_lon, end_lat, end_lon);
                     let min_zone_dist = dist_to_start.min(dist_to_end);
                     min_dist = min_dist.min(min_zone_dist);
                 }
             }
 
-            if min_dist <= MAX_DISTANCE_METERS {
-                if closest.is_none() || min_dist < closest.unwrap().1 {
-                    closest = Some((idx, min_dist));
-                }
+            if min_dist <= MAX_DISTANCE_METERS
+                && (closest.is_none() || min_dist < closest.unwrap().1)
+            {
+                closest = Some((idx, min_dist))
             }
         }
 

@@ -1,5 +1,5 @@
-use crate::structs::*;
 use crate::correlation_algorithms::CorrelationAlgo;
+use crate::structs::*;
 use rust_decimal::prelude::ToPrimitive;
 
 pub struct DistanceBasedAlgo;
@@ -32,7 +32,7 @@ fn sweref_to_latlon(x: f64, y: f64) -> (f64, f64) {
 }
 
 /// Calculate perpendicular distance from a point to a line segment
-fn distance_point_to_segment(point: [f64; 2], start: [f64; 2], end: [f64; 2]) -> f64 {
+fn _distance_point_to_segment(point: [f64; 2], start: [f64; 2], end: [f64; 2]) -> f64 {
     let point_vec = [point[0] - start[0], point[1] - start[1]];
     let line_vec = [end[0] - start[0], end[1] - start[1]];
     let line_len_sq = line_vec[0] * line_vec[0] + line_vec[1] * line_vec[1];
@@ -41,8 +41,8 @@ fn distance_point_to_segment(point: [f64; 2], start: [f64; 2], end: [f64; 2]) ->
         return (point_vec[0] * point_vec[0] + point_vec[1] * point_vec[1]).sqrt();
     }
 
-    let t = ((point_vec[0] * line_vec[0] + point_vec[1] * line_vec[1]) / line_len_sq)
-        .clamp(0.0, 1.0);
+    let t =
+        ((point_vec[0] * line_vec[0] + point_vec[1] * line_vec[1]) / line_len_sq).clamp(0.0, 1.0);
     let proj = [start[0] + t * line_vec[0], start[1] + t * line_vec[1]];
     let diff = [point[0] - proj[0], point[1] - proj[1]];
 
@@ -50,11 +50,7 @@ fn distance_point_to_segment(point: [f64; 2], start: [f64; 2], end: [f64; 2]) ->
 }
 
 impl CorrelationAlgo for DistanceBasedAlgo {
-    fn correlate(
-        &self,
-        address: &AdressClean,
-        zones: &[MiljoeDataClean],
-    ) -> Option<(usize, f64)> {
+    fn correlate(&self, address: &AdressClean, zones: &[MiljoeDataClean]) -> Option<(usize, f64)> {
         let addr_lat_f64 = address.coordinates[1].to_f64()?;
         let addr_lon_f64 = address.coordinates[0].to_f64()?;
         let (addr_lat, addr_lon) = sweref_to_latlon(addr_lon_f64, addr_lat_f64);
@@ -85,10 +81,10 @@ impl CorrelationAlgo for DistanceBasedAlgo {
 
             // Distance to end
             let dist_to_end = haversine_distance(addr_lat, addr_lon, end_lat, end_lon);
-            if dist_to_end <= MAX_DISTANCE_METERS {
-                if closest.is_none() || dist_to_end < closest.unwrap().1 {
-                    closest = Some((idx, dist_to_end));
-                }
+            if dist_to_end <= MAX_DISTANCE_METERS
+                && (closest.is_none() || dist_to_end < closest.unwrap().1)
+            {
+                closest = Some((idx, dist_to_end));
             }
         }
 

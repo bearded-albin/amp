@@ -3,11 +3,7 @@ use geojson::{Feature, GeoJson};
 use rust_decimal::Decimal;
 use std::fs;
 
-pub type ApiResult = (
-    Vec<AdressClean>,
-    Vec<MiljoeDataClean>,
-    Vec<MiljoeDataClean>,
-);
+pub type ApiResult = (Vec<AdressClean>, Vec<MiljoeDataClean>, Vec<MiljoeDataClean>);
 
 pub struct DataLoader;
 
@@ -191,8 +187,6 @@ impl DataLoader {
 }
 
 pub fn api() -> Result<ApiResult, Box<dyn std::error::Error>> {
-    let _loader = DataLoader::default();
-
     // Load from local JSON files (Malmö open data)
     let addresses = DataLoader::load_addresses("data/adresser.json")?;
     let miljodata = DataLoader::load_parking("data/miljoparkeringar.json", "Miljödata")?;
@@ -206,8 +200,8 @@ pub fn api() -> Result<ApiResult, Box<dyn std::error::Error>> {
     Ok((addresses, miljodata, parkering))
 }
 
-pub fn api_miljo_only() -> Result<(Vec<AdressClean>, Vec<MiljoeDataClean>), Box<dyn std::error::Error>> {
-    let _loader = DataLoader::default();
+pub fn api_miljo_only()
+-> Result<(Vec<AdressClean>, Vec<MiljoeDataClean>), Box<dyn std::error::Error>> {
     let addresses = DataLoader::load_addresses("data/adresser.json")?;
     let miljodata = DataLoader::load_parking("data/miljoparkeringar.json", "Miljödata")?;
     Ok((addresses, miljodata))

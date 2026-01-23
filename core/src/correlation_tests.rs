@@ -52,10 +52,10 @@ mod tests {
         // Zone ~30 meters away (should be within 50m threshold)
         // Offset by ~0.00025 degrees in both lat and lon (~25-30m)
         let zone = create_test_zone(
-            "55.5932895",  // lat_start: offset ~30m north
-            "13.1946195",  // lon_start: offset ~25m east
-            "55.5933195",  // lat_end: further north
-            "55.5946495",  // lon_end: further east
+            "55.5932895", // lat_start: offset ~30m north
+            "13.1946195", // lon_start: offset ~25m east
+            "55.5933195", // lat_end: further north
+            "55.5946495", // lon_end: further east
             "Test Zone",
         );
 

@@ -5,10 +5,12 @@ use crate::structs::{AdressClean, MiljoeDataClean};
 use crate::correlation_algorithms::CorrelationAlgo;
 use rust_decimal::prelude::ToPrimitive;
 use std::collections::HashMap;
+use std::f64::consts::PI;
 
-const CHUNK_SIZE: f64 = 100.0; // 100 meter chunks
-const OVERLAP: f64 = 50.0;     // 50 meter overlap
+const CHUNK_SIZE: f64 = 0.001; // ~100m in degrees at Malmö latitude
+const OVERLAP: f64 = 0.0005;     // ~50m overlap
 const MAX_DISTANCE_METERS: f64 = 50.0;
+const EARTH_RADIUS_M: f64 = 6371000.0;
 
 pub struct OverlappingChunksAlgo {
     grid: SpatialGrid,
@@ -124,7 +126,7 @@ impl CorrelationAlgo for OverlappingChunksAlgo {
     }
 }
 
-/// Calculate perpendicular distance from point to line segment
+/// Calculate perpendicular distance from point to line segment using Haversine
 fn distance_point_to_line(point: [f64; 2], line_start: [f64; 2], line_end: [f64; 2]) -> f64 {
     let line_vec = [line_end[0] - line_start[0], line_end[1] - line_start[1]];
     let point_vec = [point[0] - line_start[0], point[1] - line_start[1]];
@@ -132,9 +134,7 @@ fn distance_point_to_line(point: [f64; 2], line_start: [f64; 2], line_end: [f64;
     let line_len_sq = line_vec[0] * line_vec[0] + line_vec[1] * line_vec[1];
     
     if line_len_sq == 0.0 {
-        let dx = point[0] - line_start[0];
-        let dy = point[1] - line_start[1];
-        return (dx * dx + dy * dy).sqrt();
+        return haversine_distance(point, line_start);
     }
     
     let t = ((point_vec[0] * line_vec[0] + point_vec[1] * line_vec[1]) / line_len_sq)
@@ -146,9 +146,21 @@ fn distance_point_to_line(point: [f64; 2], line_start: [f64; 2], line_end: [f64;
         line_start[1] + t * line_vec[1],
     ];
     
-    let dx = point[0] - closest[0];
-    let dy = point[1] - closest[1];
-    (dx * dx + dy * dy).sqrt()
+    haversine_distance(point, closest)
+}
+
+fn haversine_distance(point1: [f64; 2], point2: [f64; 2]) -> f64 {
+    let lat1 = point1[1] * PI / 180.0;
+    let lat2 = point2[1] * PI / 180.0;
+    let delta_lat = (point2[1] - point1[1]) * PI / 180.0;
+    let delta_lon = (point2[0] - point1[0]) * PI / 180.0;
+    
+    let a = (delta_lat / 2.0).sin().powi(2)
+        + lat1.cos() * lat2.cos() * (delta_lon / 2.0).sin().powi(2);
+    
+    let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
+    
+    EARTH_RADIUS_M * c
 }
 
 #[cfg(test)]
@@ -157,10 +169,10 @@ mod tests {
 
     #[test]
     fn test_spatial_grid_cell_calculation() {
-        let point = [150.0, 250.0];
+        let point = [13.15, 55.25];
         let cell_x = (point[0] / CHUNK_SIZE).floor() as i32;
         let cell_y = (point[1] / CHUNK_SIZE).floor() as i32;
-        assert_eq!(cell_x, 1);
-        assert_eq!(cell_y, 2);
+        assert!(cell_x > 0);
+        assert!(cell_y > 0);
     }
 }

@@ -8,6 +8,7 @@ use std::f64::consts::PI;
 
 const MAX_DISTANCE_METERS: f64 = 50.0;
 const RAY_ANGLES: usize = 36; // Every 10 degrees
+const EARTH_RADIUS_M: f64 = 6371000.0;
 
 pub struct RaycastingAlgo;
 
@@ -28,9 +29,12 @@ impl CorrelationAlgo for RaycastingAlgo {
         // Cast rays in all directions
         for i in 0..RAY_ANGLES {
             let angle = (i as f64 * 360.0 / RAY_ANGLES as f64) * PI / 180.0;
+            
+            // Project ray end point ~100m away (well beyond 50m threshold)
+            let ray_distance_deg = 100.0 / 111000.0; // ~100m in degrees
             let ray_end = [
-                point[0] + angle.cos() * MAX_DISTANCE_METERS * 2.0,
-                point[1] + angle.sin() * MAX_DISTANCE_METERS * 2.0,
+                point[0] + angle.sin() * ray_distance_deg / point[1].to_radians().cos(),
+                point[1] + angle.cos() * ray_distance_deg,
             ];
             
             for (idx, line) in parking_lines.iter().enumerate() {
@@ -44,9 +48,7 @@ impl CorrelationAlgo for RaycastingAlgo {
                 ];
                 
                 if let Some(intersection) = ray_intersects_line(point, ray_end, line_start, line_end) {
-                    let dx = point[0] - intersection[0];
-                    let dy = point[1] - intersection[1];
-                    let dist = (dx * dx + dy * dy).sqrt();
+                    let dist = haversine_distance(point, intersection);
                     
                     if dist < min_distance && dist <= MAX_DISTANCE_METERS {
                         min_distance = dist;
@@ -92,6 +94,20 @@ fn ray_intersects_line(
     } else {
         None
     }
+}
+
+fn haversine_distance(point1: [f64; 2], point2: [f64; 2]) -> f64 {
+    let lat1 = point1[1] * PI / 180.0;
+    let lat2 = point2[1] * PI / 180.0;
+    let delta_lat = (point2[1] - point1[1]) * PI / 180.0;
+    let delta_lon = (point2[0] - point1[0]) * PI / 180.0;
+    
+    let a = (delta_lat / 2.0).sin().powi(2)
+        + lat1.cos() * lat2.cos() * (delta_lon / 2.0).sin().powi(2);
+    
+    let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
+    
+    EARTH_RADIUS_M * c
 }
 
 #[cfg(test)]

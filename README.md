@@ -1,9 +1,12 @@
 # AMP 
 
-[![Android app](https://github.com/resonant-jovian/amp/actions/workflows/android-test.yml/badge.svg)](https://github.com/resonant-jovian/amp/actions/workflows/android-test.yml)
-[![Core tests](https://github.com/resonant-jovian/amp/actions/workflows/correlation-tests.yml/badge.svg)](https://github.com/resonant-jovian/amp/actions/workflows/correlation-tests.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
-[![Rust Edition](https://img.shields.io/badge/rust&nbsp;edition-2024%2B-orange)](https://www.rust-lang.org/)
+[![Rust Edition](https://img.shields.io/badge/rust&nbsp;edition-2024%2B-orange)](https://www.rust-lang.org/)  
+
+[![Android app](https://github.com/resonant-jovian/amp/actions/workflows/android-test.yml/badge.svg)](https://github.com/resonant-jovian/amp/actions/workflows/android-test.yml)
+[![Correlation Algorithm Tests](https://github.com/resonant-jovian/amp/actions/workflows/correlation-tests.yml/badge.svg)](https://github.com/resonant-jovian/amp/actions/workflows/correlation-tests.yml)
+[![Server Benchmark Test](https://github.com/resonant-jovian/amp/actions/workflows/server-benchmark.yml/badge.svg)](https://github.com/resonant-jovian/amp/actions/workflows/server-benchmark.yml)
+
 
 **AMP** is a production-grade geospatial correlation library written in Rust that matches street addresses to environmental parking zones in Malmö, Sweden. Now featuring **four advanced correlation algorithms** with performance benchmarking and automated data verification!
 

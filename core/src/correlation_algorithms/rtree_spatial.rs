@@ -6,7 +6,6 @@ use crate::correlation_algorithms::CorrelationAlgo;
 use crate::structs::{AdressClean, MiljoeDataClean};
 use rstar::{AABB, PointDistance, RTree};
 use rust_decimal::prelude::ToPrimitive;
-use std::f64::consts::PI;
 
 const MAX_DISTANCE_METERS: f64 = 50.0;
 const EARTH_RADIUS_M: f64 = 6371000.0;

@@ -5,7 +5,6 @@ use crate::correlation_algorithms::CorrelationAlgo;
 use crate::structs::{AdressClean, MiljoeDataClean};
 use rust_decimal::prelude::ToPrimitive;
 use std::collections::HashMap;
-use std::f64::consts::PI;
 
 const CHUNK_SIZE: f64 = 0.001; // ~100m in degrees at Malmö latitude
 const OVERLAP: f64 = 0.0005; // ~50m overlap
@@ -31,7 +30,7 @@ pub struct SpatialGrid {
 
 impl SpatialGrid {
     pub fn new(parking_lines: &[MiljoeDataClean]) -> Self {
-        let mut chunks = HashMap::new();
+        let mut chunks: HashMap<_, Vec<usize>> = HashMap::new();
 
         for (idx, line) in parking_lines.iter().enumerate() {
             if let (Some(min_x), Some(min_y), Some(max_x), Some(max_y)) = (

@@ -6,7 +6,6 @@ use crate::correlation_algorithms::CorrelationAlgo;
 use crate::structs::{AdressClean, MiljoeDataClean};
 use rust_decimal::prelude::ToPrimitive;
 use std::collections::HashMap;
-use std::f64::consts::PI;
 
 const CELL_SIZE: f64 = 0.0005; // ~50m in degrees at Malmö latitude
 const MAX_DISTANCE_METERS: f64 = 50.0;

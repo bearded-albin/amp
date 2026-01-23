@@ -116,8 +116,7 @@ fn run_correlation(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")
-            .unwrap()
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?
             .progress_chars("█▓▒░ ")
     );
     

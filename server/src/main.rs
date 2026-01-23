@@ -16,6 +16,8 @@ use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 
 #[derive(Parser)]
 #[command(name = "amp-server")]
@@ -114,6 +116,12 @@ fn run_correlation(
     let (addresses, zones): (Vec<AdressClean>, Vec<MiljoeDataClean>) = api()?;
     pb.finish_with_message(format!("✓ Loaded {} addresses, {} zones", addresses.len(), zones.len()));
     
+    // Show which dataset is being used
+    println!("\n📋 Dataset Information:");
+    println!("   Source: Miljödata (Environmental Parking Zones)");
+    println!("   Note: Only correlating with miljödata, not parkering avgifter");
+    println!("   Max distance threshold: 50 meters");
+    
     // Setup algorithm
     let algo_name = format!("{:?}", algorithm);
     println!("\n🚀 Running correlation with {} algorithm\n", algo_name);
@@ -164,15 +172,41 @@ fn run_correlation(
     println!("\n📊 Results:");
     println!("   Addresses processed: {}", addresses.len());
     println!("   Matches found: {} ({:.1}%)", results.len(), match_percentage);
-    println!("   No match: {}", addresses.len() - results.len());
+    println!("   No match: {} ({:.1}%)", 
+        addresses.len() - results.len(),
+        ((addresses.len() - results.len()) as f64 / addresses.len() as f64) * 100.0
+    );
     println!("   Average time per address: {:.2?}", duration / addresses.len() as u32);
     
     if results.is_empty() {
         println!("\n⚠️  Warning: No matches found! Check data files.");
     } else {
-        println!("\n🔝 First 10 matches:");
-        for (addr, dist) in results.iter().take(10) {
+        // Show 10 random matches
+        let mut rng = thread_rng();
+        let mut random_results = results.clone();
+        random_results.shuffle(&mut rng);
+        
+        println!("\n🎲 10 Random Matches:");
+        for (addr, dist) in random_results.iter().take(10) {
             println!("   {} - {:.2}m", addr, dist);
+        }
+        
+        // Show 10 largest distances (should all be ≤50m)
+        let mut sorted_by_distance = results.clone();
+        sorted_by_distance.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        
+        println!("\n📏 10 Addresses with Largest Distances (all should be ≤50m):");
+        for (addr, dist) in sorted_by_distance.iter().take(10) {
+            let warning = if dist > &50.0 { " ⚠️  EXCEEDS 50m THRESHOLD!" } else { "" };
+            println!("   {} - {:.2}m{}", addr, dist, warning);
+        }
+        
+        // Check if any exceed threshold
+        let exceeds_threshold = sorted_by_distance.iter().any(|(_, dist)| dist > &50.0);
+        if exceeds_threshold {
+            println!("\n⚠️  ERROR: Some matches exceed 50m threshold! Algorithm bug detected.");
+        } else {
+            println!("\n✅ Threshold verification: All matches are within 50m");
         }
     }
     

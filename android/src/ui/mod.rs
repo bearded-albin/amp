@@ -14,8 +14,7 @@ use std::time::{Duration, SystemTime};
 
 static CSS: Asset = asset!("/assets/style.css");
 
-static ADDRESS_DATA: Asset = asset!("/assets/data/adress_info.parquet");
-
+static _ADDRESS_DATA: Asset = asset!("/assets/data/adress_info.parquet");
 
 #[derive(Clone, Debug, PartialEq)]
 struct Address {
@@ -73,16 +72,13 @@ fn format_time(ms: u128) -> String {
     let minutes = (total_seconds % 3_600) / 60;
     let seconds = total_seconds % 60;
 
-    format!(
-        "{:02}:{:02}:{:02}:{:02}",
-        days, hours, minutes, seconds
-    )
+    format!("{:02}:{:02}:{:02}:{:02}", days, hours, minutes, seconds)
 }
 
 #[component]
 pub fn App() -> Element {
-    let mut addresses = use_signal::<Vec<Address>>(|| vec![]);
-    let mut schedules = use_signal::<HashMap<String, Schedule>>(|| HashMap::new());
+    let mut addresses = use_signal::<Vec<Address>>(Vec::new);
+    let mut schedules = use_signal::<HashMap<String, Schedule>>(HashMap::new);
 
     // initializeSampleData equivalent (runs once)
     use_effect(move || {
@@ -141,7 +137,7 @@ pub fn App() -> Element {
     });
 
     // addAddressManual equivalent (without DOM, using callbacks)
-    let add_address_manual = {
+    let _add_address_manual = {
         let mut addresses = addresses.to_owned();
         let mut schedules = schedules.to_owned();
         move |street: String, postal_input: String| {
@@ -175,7 +171,7 @@ pub fn App() -> Element {
     };
 
     // removeAddress equivalent
-    let remove_address = {
+    let _remove_address = {
         let mut addresses = addresses.to_owned();
         let mut schedules = schedules.to_owned();
         move |index: usize| {
@@ -190,8 +186,8 @@ pub fn App() -> Element {
     };
 
     // toggleAddress equivalent
-    let toggle_address = {
-        let mut addresses = addresses.to_owned();
+    let _toggle_address = {
+        let addresses = addresses.to_owned();
         let mut schedules = schedules.to_owned();
         move |index: usize| {
             let addrs = addresses.read();
@@ -207,8 +203,8 @@ pub fn App() -> Element {
     };
 
     // updateSchedule equivalent
-    let update_schedule = {
-        let mut addresses = addresses.to_owned();
+    let _update_schedule = {
+        let addresses = addresses.to_owned();
         let mut schedules = schedules.to_owned();
         move |index: usize, new_kind: ScheduleType| {
             let addrs = addresses.read();
@@ -225,9 +221,9 @@ pub fn App() -> Element {
     };
 
     // updateTimers equivalent: derive formatted time for each active scheduled address
-    let timers: Vec<(Address, Option<String>)> = {
-        let mut addrs = addresses.read();
-        let mut scheds = schedules.read();
+    let _timers: Vec<(Address, Option<String>)> = {
+        let addrs = addresses.read();
+        let scheds = schedules.read();
         addrs
             .iter()
             .filter_map(|addr| {

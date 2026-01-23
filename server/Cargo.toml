@@ -8,6 +8,10 @@ license.workspace = true
 [dependencies]
 amp-core = { path = "../core" }
 tokio.workspace = true
+clap.workspace = true
+rayon.workspace = true
+indicatif.workspace = true
+rand = "0.8"
 
 [[bin]]
 name = "amp-server"

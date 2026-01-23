@@ -1,10 +1,10 @@
 use dioxus::prelude::*;
 
-pub mod ui;
 pub mod components;
+pub mod ui;
 
 use ui::App;
 
 fn main() {
-    dioxus::launch(App);
+    launch(App);
 }

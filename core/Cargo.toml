@@ -17,3 +17,5 @@ reqwest.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
 geodesy.workspace = true
+sha2.workspace = true
+chrono.workspace = true

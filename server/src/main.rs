@@ -20,6 +20,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
 use std::time::Instant;
+use std::env;
 
 #[derive(Parser)]
 #[command(name = "amp-server")]
@@ -629,6 +630,33 @@ fn run_test_mode(
     Ok(())
 }
 
+/// Get the browser executable to use on Linux
+fn get_browser_executable() -> String {
+    // Check BROWSER environment variable first
+    if let Ok(browser) = env::var("BROWSER") {
+        if !browser.is_empty() {
+            return browser;
+        }
+    }
+
+    // Try to find common browsers
+    let common_browsers = vec!["firefox", "chromium", "chromium-browser", "google-chrome", "chrome"];
+    
+    for browser in common_browsers {
+        if std::process::Command::new("which")
+            .arg(browser)
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+        {
+            return browser.to_string();
+        }
+    }
+
+    // Default fallback
+    "firefox".to_string()
+}
+
 /// Open a new browser window with 2 tabs:
 /// Tab 1: StadsAtlas with automated address entry workflow
 /// Tab 2: Correlation result data
@@ -683,15 +711,23 @@ fn open_browser_windows(
 
     #[cfg(target_os = "linux")]
     {
-        // Linux: Use xdg-open for both URLs
-        std::process::Command::new("xdg-open")
+        // Linux: Open browser directly with data: URIs
+        // xdg-open doesn't support data: URIs for security reasons, so we use the browser directly
+        let browser = get_browser_executable();
+        
+        // Open first tab with stadsatlas automation
+        std::process::Command::new(&browser)
             .arg(&stadsatlas_data_url)
-            .output()
+            .spawn()
             .ok();
+        
+        // Small delay before opening second tab
         thread::sleep(Duration::from_millis(1000));
-        std::process::Command::new("xdg-open")
+        
+        // Open second tab with correlation data
+        std::process::Command::new(&browser)
             .arg(&correlation_data_url)
-            .output()
+            .spawn()
             .ok();
     }
 

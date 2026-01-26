@@ -89,39 +89,82 @@ impl DataLoader {
         })
     }
 
-    fn parse_parking_feature(feature: Feature) -> Option<MiljoeDataClean> {
+    fn parse_parking_feature(feature: Feature, is_avgifter: bool) -> Option<MiljoeDataClean> {
         let props = feature.clone().properties?;
 
         let coordinates = Self::extract_linestring_endpoints(&feature)?;
 
-        // Get info from 'value' or 'copyvalue' field
-        let info = props
-            .get("value")
-            .or_else(|| props.get("copyvalue"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("Unknown")
-            .to_string();
+        // For parkeringsavgifter (fee data), use 'taxa' field; for miljöparkeringar, try 'value'/'copyvalue'
+        let info = if is_avgifter {
+            // For avgifter, use taxa field which contains parking rate info
+            props
+                .get("taxa")
+                .or_else(|| props.get("value"))
+                .or_else(|| props.get("copyvalue"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Okänd")
+                .to_string()
+        } else {
+            // For miljöparkeringar, try value/copyvalue
+            props
+                .get("value")
+                .or_else(|| props.get("copyvalue"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Okänd")
+                .to_string()
+        };
 
-        // Get time info
+        // Get time info - avgifter typically have it, miljöparkeringar may not
         let tid = props
             .get("tid")
             .and_then(|v| v.as_str())
-            .unwrap_or("00:00 - 00:00")
-            .to_string();
-
-        // Get day info
-        let dag = props
-            .get("day")
-            .and_then(|v| {
-                if let Some(num) = v.as_u64() {
-                    Some(num as u8)
-                } else if let Some(s) = v.as_str() {
-                    s.parse::<u8>().ok()
-                } else {
-                    None
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                // For avgifter, try to extract time from taxa field
+                if is_avgifter {
+                    if let Some(taxa_str) = props.get("taxa").and_then(|v| v.as_str()) {
+                        // Try to extract time range like "8–22" or "8–20"
+                        if let Some(start) = taxa_str.find('–') {
+                            if start > 0 && start + 1 < taxa_str.len() {
+                                // Extract the portion around the time
+                                let before = &taxa_str[..start];
+                                let after = &taxa_str[start + 1..];
+                                
+                                // Find the digit before the dash
+                                let start_time = before.chars().rev().take_while(|c| c.is_ascii_digit()).collect::<String>();
+                                let start_time = start_time.chars().rev().collect::<String>();
+                                
+                                // Find the digit after the dash
+                                let end_time = after.chars().take_while(|c| c.is_ascii_digit()).collect::<String>();
+                                
+                                if !start_time.is_empty() && !end_time.is_empty() {
+                                    return format!("{}:00–{}:00", start_time, end_time);
+                                }
+                            }
+                        }
+                    }
                 }
-            })
-            .unwrap_or(0);
+                "00:00–23:59".to_string()
+            });
+
+        // Get day info - for avgifter it's always all days (0 means all days in context)
+        // For miljöparkeringar it may be specific days
+        let dag = if is_avgifter {
+            0u8 // 0 = all days for parking fees
+        } else {
+            props
+                .get("day")
+                .and_then(|v| {
+                    if let Some(num) = v.as_u64() {
+                        Some(num as u8)
+                    } else if let Some(s) = v.as_str() {
+                        s.parse::<u8>().ok()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0)
+        };
 
         Some(MiljoeDataClean {
             coordinates,
@@ -164,12 +207,15 @@ impl DataLoader {
         let content = fs::read_to_string(path)?;
         let geojson: GeoJson = content.parse()?;
 
+        // Determine if this is avgifter (fees) data
+        let is_avgifter = dataset_name.to_lowercase().contains("avgift");
+
         let parking: Vec<MiljoeDataClean> = if let GeoJson::FeatureCollection(collection) = geojson
         {
             collection
                 .features
                 .into_iter()
-                .filter_map(Self::parse_parking_feature)
+                .filter_map(|f| Self::parse_parking_feature(f, is_avgifter))
                 .collect()
         } else {
             return Err(format!("Invalid GeoJSON format for {}", dataset_name).into());
@@ -179,7 +225,11 @@ impl DataLoader {
 
         // Show sample
         for (i, park) in parking.iter().take(3).enumerate() {
-            println!("  [{}] {} (Day {})", i + 1, park.info, park.dag);
+            if is_avgifter {
+                println!("  [{}] {} (All days)", i + 1, park.info);
+            } else {
+                println!("  [{}] {} (Day {})", i + 1, park.info, park.dag);
+            }
         }
 
         Ok(parking)

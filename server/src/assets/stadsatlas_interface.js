@@ -3,7 +3,7 @@
 // Handles address search, map loading, tab switching, and logging
 // ===================================================================
 
-const BASE_URL = 'https://geo.malmo.se/api/search?q=';
+const BASE_URL = 'https://geo.malmo.se/api/search';
 
 function logToConsole(prefix, message) {
     const timestamp = new Date().toLocaleTimeString();
@@ -31,9 +31,15 @@ function searchAddress() {
     const address = searchBox ? searchBox.value : 'Master Henriksgatan 2';
     
     logToConsole('SEARCH', `Starting address search for: ${address}`);
-    logToConsole('API', `Calling: ${BASE_URL}${encodeURIComponent(address)}...`);
     
-    fetch(`${BASE_URL}${encodeURIComponent(address)}`)
+    // Build URL using URLSearchParams for proper encoding
+    const params = new URLSearchParams();
+    params.append('q', address);
+    const fullUrl = `${BASE_URL}?${params.toString()}`;
+    
+    logToConsole('API', `Calling: ${fullUrl}`);
+    
+    fetch(fullUrl)
         .then(response => {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return response.json();
@@ -154,7 +160,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (mapContainer) {
         // Force dimension calculation
         const computedStyle = window.getComputedStyle(mapContainer);
-        logToConsole('DEBUG', `Map container computed dimensions: ${computedStyle.width} x ${computedStyle.height}`);
+        const width = computedStyle.width;
+        const height = computedStyle.height;
+        logToConsole('DEBUG', `Map container computed dimensions: ${width} x ${height}`);
         
         // Ensure minimum height is met
         if (mapContainer.offsetHeight === 0) {

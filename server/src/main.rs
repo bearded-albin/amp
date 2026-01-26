@@ -357,7 +357,8 @@ fn run_correlation(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -389,7 +390,8 @@ fn run_correlation(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?            .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?
+            .progress_chars("█▓▒░ "),
     );
 
     // Correlate with miljödata
@@ -533,7 +535,8 @@ fn run_test_mode(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for testing...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data for testing...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -557,7 +560,8 @@ fn run_test_mode(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?            .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?
+            .progress_chars("█▓▒░ "),
     );
 
     let miljo_results = correlate_dataset(&algorithm, &addresses, &miljodata, cutoff, &pb)?;
@@ -1093,9 +1097,9 @@ fn open_browser_window(
     let temp_dir = std::env::temp_dir();
     let filename = format!("amp_test_{}.html", window_idx);
     let temp_file = temp_dir.join(&filename);
-    
+
     fs::write(&temp_file, &tabbed_page)?;
-    
+
     let file_url = format!("file://{}", temp_file.display());
 
     // Try to open window using different methods depending on OS
@@ -1130,7 +1134,8 @@ fn open_browser_window(
 fn run_benchmark(sample_size: usize, cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
     // Load data
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for benchmarking...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data for benchmarking...");
 
     let (addresses, zones) = amp_core::api::api_miljo_only()?;
 
@@ -1393,7 +1398,8 @@ async fn check_updates(checksum_file: &str) -> Result<(), Box<dyn std::error::Er
     );
 
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Fetching remote data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Fetching remote data...");
 
     new_checksums.update_from_remote().await?;
     pb.finish_with_message("✓ Data fetched");

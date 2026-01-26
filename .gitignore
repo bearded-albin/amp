@@ -11,3 +11,4 @@ bundletool-all-1.15.6.jar
 release.jks
 release.jks.backup
 keystore.properties
+server/data

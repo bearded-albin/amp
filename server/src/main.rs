@@ -14,13 +14,13 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rayon::prelude::*;
+use std::env;
 use std::io::{self, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
 use std::time::Instant;
-use std::env;
 
 #[derive(Parser)]
 #[command(name = "amp-server")]
@@ -633,15 +633,21 @@ fn run_test_mode(
 /// Get the browser executable to use on Linux
 fn get_browser_executable() -> String {
     // Check BROWSER environment variable first
-    if let Ok(browser) = env::var("BROWSER") {
-        if !browser.is_empty() {
-            return browser;
-        }
+    if let Ok(browser) = env::var("BROWSER")
+        && !browser.is_empty()
+    {
+        return browser;
     }
 
     // Try to find common browsers
-    let common_browsers = vec!["firefox", "chromium", "chromium-browser", "google-chrome", "chrome"];
-    
+    let common_browsers = vec![
+        "firefox",
+        "chromium",
+        "chromium-browser",
+        "google-chrome",
+        "chrome",
+    ];
+
     for browser in common_browsers {
         if std::process::Command::new("which")
             .arg(browser)
@@ -714,16 +720,16 @@ fn open_browser_windows(
         // Linux: Open browser directly with data: URIs
         // xdg-open doesn't support data: URIs for security reasons, so we use the browser directly
         let browser = get_browser_executable();
-        
+
         // Open first tab with stadsatlas automation
         std::process::Command::new(&browser)
             .arg(&stadsatlas_data_url)
             .spawn()
             .ok();
-        
+
         // Small delay before opening second tab
         thread::sleep(Duration::from_millis(1000));
-        
+
         // Open second tab with correlation data
         std::process::Command::new(&browser)
             .arg(&correlation_data_url)

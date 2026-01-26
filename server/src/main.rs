@@ -356,8 +356,7 @@ fn run_correlation(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Loading data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -389,8 +388,7 @@ fn run_correlation(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?
-            .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?            .progress_chars("█▓▒░ "),
     );
 
     // Correlate with miljödata
@@ -534,8 +532,7 @@ fn run_test_mode(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Loading data for testing...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for testing...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -559,8 +556,7 @@ fn run_test_mode(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?
-            .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?            .progress_chars("█▓▒░ "),
     );
 
     let miljo_results = correlate_dataset(&algorithm, &addresses, &miljodata, cutoff, &pb)?;
@@ -598,10 +594,10 @@ fn run_test_mode(
     let selected: Vec<_> = sampled.iter().take(actual_windows).collect();
 
     println!("\n🌐 Opening {} browser windows...", actual_windows);
-    println!("   Each window has 3 tabs:");
-    println!("   - Tab 1: StadsAtlas with automated address lookup");
-    println!("   - Tab 2: Instructions with address steps");
-    println!("   - Tab 3: Raw correlation data\n");
+    println!("   Each window has 3 integrated tabs in a single page:");
+    println!("   - Tab 1: Live StadsAtlas iframe");
+    println!("   - Tab 2: Step-by-step instructions");
+    println!("   - Tab 3: Correlation data visualization\n");
 
     // Open browser windows with delays to prevent overwhelming the system
     for (idx, result) in selected.iter().enumerate() {
@@ -612,7 +608,7 @@ fn run_test_mode(
             result.address
         );
 
-        if let Err(e) = open_browser_windows(result, idx) {
+        if let Err(e) = open_browser_window(result, idx) {
             println!("      ⚠️  Failed to open: {}", e);
         }
 
@@ -664,124 +660,365 @@ fn get_browser_executable() -> String {
     "firefox".to_string()
 }
 
-/// Create an HTML page that will automatically interact with StadsAtlas
-fn create_stadsatlas_automation_page(address: &str) -> String {
-    format!(
-        r#"<!DOCTYPE html>
-<html>
-<head>
-    <title>StadsAtlas - Auto Lookup: {}</title>
-    <meta charset="UTF-8">
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }}
-        .container {{ background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: 0 auto; }}
-        h1 {{ color: #333; margin-bottom: 20px; }}
-        .instruction {{ background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #4caf50; }}
-        .note {{ color: #666; font-size: 14px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; }}
-        .address-display {{ background: #fff3e0; padding: 15px; border-radius: 4px; margin: 15px 0; font-weight: bold; }}
-        .steps {{ counter-reset: step-counter; margin: 20px 0; }}
-        .step {{ counter-increment: step-counter; margin: 15px 0; padding: 10px; background: #f5f5f5; border-radius: 4px; }}
-        .step::before {{ content: counter(step-counter); display: inline-block; background: #2196F3; color: white; width: 24px; height: 24px; border-radius: 50%; text-align: center; line-height: 24px; margin-right: 10px; font-weight: bold; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🗺️ StadsAtlas Auto-Lookup</h1>
-        <div class="address-display">{}</div>
-        
-        <div class="instruction">
-            📌 This page will help you verify the correlation data in StadsAtlas.
-        </div>
-
-        <div class="steps">
-            <div class="step">
-                Click the <strong>layers icon</strong> (first icon in top toolbar)
-            </div>
-            <div class="step">
-                Click the <strong>chevron right</strong> button (arrow pointing right)
-            </div>
-            <div class="step">
-                Click the <strong>chevron right</strong> button again
-            </div>
-            <div class="step">
-                Click the <strong>chevron right</strong> button once more
-            </div>
-            <div class="step">
-                Click the <strong>radio button</strong> (circle) to enable <strong>Miljöparkering</strong>
-            </div>
-            <div class="step">
-                Click in the <strong>"Sök adresser eller platser..."</strong> search field at the top
-            </div>
-            <div class="step">
-                Enter this address: <strong>{}</strong>
-            </div>
-        </div>
-
-        <div class="note">
-            💡 <strong>Tip:</strong> Use the third tab to see the correlation result data while you verify it in StadsAtlas (first tab).
-        </div>
-    </div>
-</body>
-</html>"#,
-        address, address, address
-    )
-}
-
-/// Create the correlation result data display page
-fn create_correlation_result_page(result: &CorrelationResult) -> String {
+/// Create a single HTML page with 3 integrated tabs
+/// Tab 1: StadsAtlas Live Iframe
+/// Tab 2: Instructions
+/// Tab 3: Correlation Data
+fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> String {
     let matches_html = format_matches_html(result);
 
     format!(
         r#"<!DOCTYPE html>
 <html>
 <head>
-    <title>Correlation Result - {}</title>
+    <title>AMP Testing Interface - {}</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }}
-        .container {{ background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: 0 auto; }}
-        h1 {{ color: #333; margin-bottom: 20px; }}
-        .field {{ margin: 20px 0; }}
-        .label {{ font-weight: bold; color: #666; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }}
-        .value {{ color: #333; padding: 10px; background: #f9f9f9; border-radius: 4px; border-left: 3px solid #2196F3; }}
-        .match {{ background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #4caf50; }}
-        .match strong {{ color: #2e7d32; }}
-        .no-match {{ background: #ffebee; padding: 15px; border-radius: 4px; border-left: 4px solid #c62828; }}
-        .match-item {{ margin-bottom: 10px; }}
-        .distance {{ color: #e67e22; font-weight: bold; }}
-        .info {{ color: #7f8c8d; font-size: 12px; margin-top: 5px; }}
-        h2 {{ color: #555; font-size: 16px; margin-top: 30px; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }}
+        
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }}
+        
+        .header h1 {{
+            font-size: 24px;
+            margin-bottom: 8px;
+        }}
+        
+        .header .address {{
+            font-size: 14px;
+            opacity: 0.9;
+            font-weight: 500;
+        }}
+        
+        .tab-container {{
+            max-width: 1400px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }}
+        
+        .tab-buttons {{
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            background: #fafafa;
+        }}
+        
+        .tab-btn {{
+            flex: 1;
+            padding: 16px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            position: relative;
+        }}
+        
+        .tab-btn:hover {{
+            background: #f0f0f0;
+            color: #667eea;
+        }}
+        
+        .tab-btn.active {{
+            color: #667eea;
+            background: white;
+        }}
+        
+        .tab-btn.active::after {{
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #667eea;
+        }}
+        
+        .tab-content {{
+            display: none;
+            padding: 30px;
+            min-height: 600px;
+        }}
+        
+        .tab-content.active {{
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }}
+        
+        @keyframes fadeIn {{
+            from {{ opacity: 0; }}
+            to {{ opacity: 1; }}
+        }}
+        
+        /* Tab 1: StadsAtlas */
+        #tab1 {{
+            padding: 0;
+        }}
+        
+        .iframe-container {{
+            width: 100%;
+            height: 800px;
+            border: none;
+        }}
+        
+        iframe {{
+            width: 100%;
+            height: 100%;
+            border: none;
+        }}
+        
+        /* Tab 2: Instructions */
+        .instruction {{
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+            border-left: 4px solid #4caf50;
+        }}
+        
+        .steps {{
+            counter-reset: step-counter;
+            margin: 20px 0;
+        }}
+        
+        .step {{
+            counter-increment: step-counter;
+            margin: 15px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+        }}
+        
+        .step::before {{
+            content: counter(step-counter);
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            margin-right: 12px;
+            font-weight: bold;
+            font-size: 14px;
+        }}
+        
+        .step strong {{
+            color: #667eea;
+        }}
+        
+        .note {{
+            color: #666;
+            font-size: 14px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }}
+        
+        .address-display {{
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+            font-weight: bold;
+            border-left: 4px solid #ff9800;
+        }}
+        
+        /* Tab 3: Data */
+        .field {{
+            margin: 20px 0;
+        }}
+        
+        .label {{
+            font-weight: bold;
+            color: #666;
+            font-size: 11px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }}
+        
+        .value {{
+            color: #333;
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+            font-size: 14px;
+        }}
+        
+        .match {{
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 4px solid #4caf50;
+        }}
+        
+        .match strong {{
+            color: #2e7d32;
+        }}
+        
+        .no-match {{
+            background: #ffebee;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #c62828;
+        }}
+        
+        .match-item {{
+            margin-bottom: 10px;
+        }}
+        
+        .distance {{
+            color: #e67e22;
+            font-weight: bold;
+            font-size: 16px;
+        }}
+        
+        .info {{
+            color: #7f8c8d;
+            font-size: 12px;
+            margin-top: 8px;
+        }}
+        
+        h2 {{
+            color: #555;
+            font-size: 18px;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+        }}
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📊 Correlation Result Data</h1>
-        
-        <div class="field">
-            <div class="label">Address</div>
-            <div class="value">{}</div>
+    <div class="header">
+        <h1>📍 AMP Correlation Testing Interface</h1>
+        <div class="address">{}</div>
+    </div>
+    
+    <div class="tab-container">
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="switchTab(1)">🗺️ StadsAtlas</button>
+            <button class="tab-btn" onclick="switchTab(2)">📋 Instructions</button>
+            <button class="tab-btn" onclick="switchTab(3)">📊 Data</button>
         </div>
         
-        <div class="field">
-            <div class="label">Postal Code</div>
-            <div class="value">{}</div>
+        <!-- Tab 1: StadsAtlas Live -->
+        <div id="tab1" class="tab-content active">
+            <iframe src="https://stadsatlas.malmo.se/stadsatlas/" class="iframe-container"></iframe>
         </div>
         
-        <div class="field">
-            <div class="label">Dataset Source</div>
-            <div class="value">{}</div>
+        <!-- Tab 2: Instructions -->
+        <div id="tab2" class="tab-content">
+            <h1>📋 StadsAtlas Verification Instructions</h1>
+            
+            <div class="instruction">
+                ✓ Follow these steps to verify the address in StadsAtlas (Tab 1)
+            </div>
+            
+            <div class="address-display">{}</div>
+            
+            <div class="steps">
+                <div class="step">
+                    Click the <strong>layers icon</strong> (first icon in top toolbar)
+                </div>
+                <div class="step">
+                    Click the <strong>chevron right</strong> button (arrow pointing right)
+                </div>
+                <div class="step">
+                    Click the <strong>chevron right</strong> button again
+                </div>
+                <div class="step">
+                    Click the <strong>chevron right</strong> button once more
+                </div>
+                <div class="step">
+                    Click the <strong>radio button</strong> (circle) to enable <strong>Miljöparkering</strong>
+                </div>
+                <div class="step">
+                    Click in the <strong>"Sök adresser eller platser..."</strong> search field at the top
+                </div>
+                <div class="step">
+                    Enter this address: <strong>{}</strong>
+                </div>
+            </div>
+            
+            <div class="note">
+                💡 <strong>Tip:</strong> Use Tab 3 to see the correlation result data while you verify it in StadsAtlas (Tab 1).
+            </div>
         </div>
         
-        <h2>Matched Zones</h2>
-        {}
-        
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #999; font-size: 12px;">
-            Compare this data with what you see in StadsAtlas to verify correlation accuracy.
+        <!-- Tab 3: Correlation Data -->
+        <div id="tab3" class="tab-content">
+            <h1>📊 Correlation Result Data</h1>
+            
+            <div class="field">
+                <div class="label">Address</div>
+                <div class="value">{}</div>
+            </div>
+            
+            <div class="field">
+                <div class="label">Postal Code</div>
+                <div class="value">{}</div>
+            </div>
+            
+            <div class="field">
+                <div class="label">Dataset Source</div>
+                <div class="value">{}</div>
+            </div>
+            
+            <h2>Matched Zones</h2>
+            {}
+            
+            <div class="note" style="margin-top: 40px;">
+                Compare this data with what you see in StadsAtlas (Tab 1) to verify correlation accuracy.
+            </div>
         </div>
     </div>
+    
+    <script>
+        function switchTab(tabNumber) {{
+            // Hide all tabs
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Remove active class from all buttons
+            const btns = document.querySelectorAll('.tab-btn');
+            btns.forEach(btn => btn.classList.remove('active'));
+            
+            // Show selected tab
+            document.getElementById('tab' + tabNumber).classList.add('active');
+            
+            // Add active class to button
+            event.target.classList.add('active');
+        }}
+    </script>
 </body>
 </html>"#,
-        result.address,
+        address, address, address, address,
         result.address,
         result.postnummer,
         result.dataset_source(),
@@ -802,7 +1039,7 @@ fn format_matches_html(result: &CorrelationResult) -> String {
 </div>
 <div class="match">
     <div class="match-item">
-        <strong>🚗 Parkering</strong><br>
+        <strong>🅿️ Parkering</strong><br>
         <span class="distance">{:.2}m away</span><br>
         <div class="info">{}</div>
     </div>
@@ -826,7 +1063,7 @@ fn format_matches_html(result: &CorrelationResult) -> String {
             format!(
                 r#"<div class="match">
     <div class="match-item">
-        <strong>🚗 Parkering</strong><br>
+        <strong>🅿️ Parkering</strong><br>
         <span class="distance">{:.2}m away</span><br>
         <div class="info">{}</div>
     </div>
@@ -834,92 +1071,46 @@ fn format_matches_html(result: &CorrelationResult) -> String {
                 dist, info
             )
         }
-        (None, None) => "<div class='no-match'>❌ No matches found</div>".to_string(),
+        (None, None) => "<div class='no-match'>✗ No matches found</div>".to_string(),
     }
 }
 
-/// Open a new browser window with 3 tabs:
-/// Tab 1: StadsAtlas live URL for address lookup
-/// Tab 2: Instructions for manual StadsAtlas navigation
-/// Tab 3: Correlation result data
-fn open_browser_windows(
+/// Open a single browser window with integrated tabbed interface
+fn open_browser_window(
     result: &&CorrelationResult,
     _window_idx: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let address = &result.address;
 
-    // Tab 1: Open StadsAtlas live URL
-    let stadsatlas_url = "https://stadsatlas.malmo.se/stadsatlas/".to_string();
-
-    // Tab 2: Instructions page
-    let instructions_page = create_stadsatlas_automation_page(address);
-    let instructions_url = format!(
+    // Create the complete tabbed HTML page
+    let tabbed_page = create_tabbed_interface_page(address, result);
+    let page_url = format!(
         "data:text/html;charset=utf-8,{}",
-        urlencoding::encode(&instructions_page)
+        urlencoding::encode(&tabbed_page)
     );
 
-    // Tab 3: Correlation result data page
-    let correlation_data = create_correlation_result_page(result);
-    let correlation_data_url = format!(
-        "data:text/html;charset=utf-8,{}",
-        urlencoding::encode(&correlation_data)
-    );
-
-    // Try to open windows using different methods depending on OS
+    // Try to open window using different methods depending on OS
     #[cfg(target_os = "windows")]
     {
-        // Windows: Open new browser window with all three tabs
         std::process::Command::new("cmd")
-            .args(&[
-                "/C",
-                &format!(
-                    "start chrome \"{}\" && timeout /t 1 && start chrome \"{}\" && timeout /t 1 && start chrome \"{}\"",
-                    stadsatlas_url, instructions_url, correlation_data_url
-                ),
-            ])
+            .args(&["/C", &format!("start chrome \"{}\"", page_url)])
             .output()
             .ok();
     }
 
     #[cfg(target_os = "macos")]
     {
-        // macOS: Open tabs in order
-        let script = format!(
-            r#"open '{}' & sleep 1 && open '{}' & sleep 1 && open '{}' "#,
-            stadsatlas_url, instructions_url, correlation_data_url
-        );
         std::process::Command::new("bash")
-            .args(&["-c", &script])
+            .args(&["-c", &format!("open '{}'", page_url)])
             .output()
             .ok();
     }
 
     #[cfg(target_os = "linux")]
     {
-        // Linux: Open browser with all three URLs
         let browser = get_browser_executable();
-
-        // Open first tab with StadsAtlas
         std::process::Command::new(&browser)
-            .arg(&stadsatlas_url)
-            .spawn()
-            .ok();
-
-        // Small delay before opening second tab
-        thread::sleep(Duration::from_millis(800));
-
-        // Open second tab with instructions
-        std::process::Command::new(&browser)
-            .arg(&instructions_url)
-            .spawn()
-            .ok();
-
-        // Small delay before opening third tab
-        thread::sleep(Duration::from_millis(800));
-
-        // Open third tab with correlation data
-        std::process::Command::new(&browser)
-            .arg(&correlation_data_url)
+            .arg(&page_url)
             .spawn()
             .ok();
     }
@@ -930,8 +1121,7 @@ fn open_browser_windows(
 fn run_benchmark(sample_size: usize, cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
     // Load data
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Loading data for benchmarking...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for benchmarking...");
 
     let (addresses, zones) = amp_core::api::api_miljo_only()?;
 
@@ -1194,8 +1384,7 @@ async fn check_updates(checksum_file: &str) -> Result<(), Box<dyn std::error::Er
     );
 
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Fetching remote data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Fetching remote data...");
 
     new_checksums.update_from_remote().await?;
     pb.finish_with_message("✓ Data fetched");

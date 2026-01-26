@@ -147,10 +147,10 @@ impl DataLoader {
                 .unwrap_or("Okänd")
                 .to_string()
         } else {
-            // For miljöparkeringar, try value/copyvalue
+            // For miljöparkeringar, try copyvalue/value/
             props
-                .get("value")
-                .or_else(|| props.get("copyvalue"))
+                .get("copyvalue")
+                .or_else(|| props.get("value"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("Okänd")
                 .to_string()

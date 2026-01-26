@@ -357,7 +357,8 @@ fn run_correlation(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -389,7 +390,8 @@ fn run_correlation(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?            .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?
+            .progress_chars("█▓▒░ "),
     );
 
     // Correlate with miljödata
@@ -533,7 +535,8 @@ fn run_test_mode(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for testing...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data for testing...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -557,7 +560,8 @@ fn run_test_mode(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?            .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?
+            .progress_chars("█▓▒░ "),
     );
 
     let miljo_results = correlate_dataset(&algorithm, &addresses, &miljodata, cutoff, &pb)?;
@@ -694,19 +698,26 @@ fn format_matches_html(result: &CorrelationResult) -> String {
 fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> String {
     let matches_html = format_matches_html(result);
     let address_escaped = address.replace('"', "&quot;");
-    
+
     // Build HTML with string concatenation to avoid format string issues with JavaScript
     let mut html = String::new();
     html.push_str("<!DOCTYPE html>\n<html>\n<head>\n");
-    html.push_str(&format!("    <title>AMP Testing Interface - {}</title>\n", address));
+    html.push_str(&format!(
+        "    <title>AMP Testing Interface - {}</title>\n",
+        address
+    ));
     html.push_str("    <meta charset=\"UTF-8\">\n");
-    html.push_str("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
+    html.push_str(
+        "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n",
+    );
     html.push_str("    <style>\n");
     html.push_str("        * { margin: 0; padding: 0; box-sizing: border-box; }\n");
     html.push_str("        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }\n");
     html.push_str("        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }\n");
     html.push_str("        .header h1 { font-size: 24px; margin-bottom: 8px; }\n");
-    html.push_str("        .header .address { font-size: 14px; opacity: 0.9; font-weight: 500; }\n");
+    html.push_str(
+        "        .header .address { font-size: 14px; opacity: 0.9; font-weight: 500; }\n",
+    );
     html.push_str("        .tab-container { max-width: 1400px; margin: 20px auto; background: white; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); overflow: hidden; }\n");
     html.push_str("        .tab-buttons { display: flex; border-bottom: 2px solid #e0e0e0; background: #fafafa; }\n");
     html.push_str("        .tab-btn { flex: 1; padding: 16px 20px; background: none; border: none; cursor: pointer; font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; transition: all 0.3s ease; position: relative; }\n");
@@ -748,14 +759,21 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("<body>\n");
     html.push_str("    <div class=\"header\">\n");
     html.push_str("        <h1>📍 AMP Correlation Testing Interface</h1>\n");
-    html.push_str(&format!("        <div class=\"address\">{}</div>\n", address));
+    html.push_str(&format!(
+        "        <div class=\"address\">{}</div>\n",
+        address
+    ));
     html.push_str("    </div>\n");
     html.push_str("    <div class=\"tab-container\">\n");
     html.push_str("        <div class=\"tab-buttons\">\n");
     html.push_str("            <button class=\"tab-btn active\" onclick=\"switchTab(event, 1)\">🗺️ StadsAtlas</button>\n");
     html.push_str("            <button class=\"tab-btn\" onclick=\"switchTab(event, 2)\">📋 Instructions</button>\n");
-    html.push_str("            <button class=\"tab-btn\" onclick=\"switchTab(event, 3)\">📊 Data</button>\n");
-    html.push_str("            <button class=\"tab-btn\" onclick=\"switchTab(event, 4)\">🐛 Debug</button>\n");
+    html.push_str(
+        "            <button class=\"tab-btn\" onclick=\"switchTab(event, 3)\">📊 Data</button>\n",
+    );
+    html.push_str(
+        "            <button class=\"tab-btn\" onclick=\"switchTab(event, 4)\">🐛 Debug</button>\n",
+    );
     html.push_str("        </div>\n");
     html.push_str("        <div id=\"tab1\" class=\"tab-content active\">\n");
     html.push_str("            <iframe src=\"https://stadsatlas.malmo.se/stadsatlas/\" class=\"iframe-container\"></iframe>\n");
@@ -763,13 +781,21 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("        <div id=\"tab2\" class=\"tab-content\">\n");
     html.push_str("            <h1>📋 StadsAtlas Verification Instructions</h1>\n");
     html.push_str("            <div class=\"instruction\">✓ Follow these steps to verify the address in StadsAtlas (Tab 1)</div>\n");
-    html.push_str(&format!("            <div class=\"address-display\">{}</div>\n", address));
+    html.push_str(&format!(
+        "            <div class=\"address-display\">{}</div>\n",
+        address
+    ));
     html.push_str("            <div class=\"steps\">\n");
     html.push_str("                <div class=\"step\">Click the <strong>menu icon</strong> (hamburger menu or layers button in top left)</div>\n");
-    html.push_str("                <div class=\"step\">Look for the <strong>Parking section</strong></div>\n");
+    html.push_str(
+        "                <div class=\"step\">Look for the <strong>Parking section</strong></div>\n",
+    );
     html.push_str("                <div class=\"step\">Find and enable <strong>Miljöparkering</strong> (Environmental Parking)</div>\n");
     html.push_str("                <div class=\"step\">Click in the <strong>search field</strong> at the top</div>\n");
-    html.push_str(&format!("                <div class=\"step\">Enter this address: <strong>{}</strong></div>\n", address));
+    html.push_str(&format!(
+        "                <div class=\"step\">Enter this address: <strong>{}</strong></div>\n",
+        address
+    ));
     html.push_str("            </div>\n");
     html.push_str("            <div class=\"note\">💡 <strong>Tip:</strong> Check the Debug tab to see detailed injection logs and troubleshooting information.</div>\n");
     html.push_str("        </div>\n");
@@ -777,15 +803,24 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("            <h1>📊 Correlation Result Data</h1>\n");
     html.push_str("            <div class=\"field\">\n");
     html.push_str("                <div class=\"label\">Address</div>\n");
-    html.push_str(&format!("                <div class=\"value\">{}</div>\n", result.address));
+    html.push_str(&format!(
+        "                <div class=\"value\">{}</div>\n",
+        result.address
+    ));
     html.push_str("            </div>\n");
     html.push_str("            <div class=\"field\">\n");
     html.push_str("                <div class=\"label\">Postal Code</div>\n");
-    html.push_str(&format!("                <div class=\"value\">{}</div>\n", result.postnummer));
+    html.push_str(&format!(
+        "                <div class=\"value\">{}</div>\n",
+        result.postnummer
+    ));
     html.push_str("            </div>\n");
     html.push_str("            <div class=\"field\">\n");
     html.push_str("                <div class=\"label\">Dataset Source</div>\n");
-    html.push_str(&format!("                <div class=\"value\">{}</div>\n", result.dataset_source()));
+    html.push_str(&format!(
+        "                <div class=\"value\">{}</div>\n",
+        result.dataset_source()
+    ));
     html.push_str("            </div>\n");
     html.push_str("            <h2>Matched Zones</h2>\n");
     html.push_str(&matches_html);
@@ -795,23 +830,29 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("            <div class=\"note\"><strong>Status:</strong> Open browser DevTools Console (F12) to see full logs. All messages start with <code>[AMP]</code>.</div>\n");
     html.push_str("            <div class=\"field\">\n");
     html.push_str("                <div class=\"label\">Injection Phase</div>\n");
-    html.push_str("                <div class=\"value\" id=\"injection-status\">Initializing...</div>\n");
+    html.push_str(
+        "                <div class=\"value\" id=\"injection-status\">Initializing...</div>\n",
+    );
     html.push_str("            </div>\n");
-    html.push_str("            <div class=\"label\" style=\"margin-top: 20px;\">Detailed Logs</div>\n");
+    html.push_str(
+        "            <div class=\"label\" style=\"margin-top: 20px;\">Detailed Logs</div>\n",
+    );
     html.push_str("            <div class=\"console-log\" id=\"injection-logs\"></div>\n");
     html.push_str("        </div>\n");
     html.push_str("    </div>\n");
     html.push_str("    <script>\n");
     html.push_str("        const logs = [];\n");
-    html.push_str("        const addressToInject = '" + address_escaped + "';\n");
-    html.push_str("\n");
+    html.push_str(&("        const addressToInject = '".to_owned() + &address_escaped + "';\n"));
+    html.push('\n');
     html.push_str("        function logMessage(phase, message, type) {\n");
     html.push_str("            const timestamp = new Date().toLocaleTimeString();\n");
     html.push_str("            const logEntry = {timestamp, phase, message, type};\n");
     html.push_str("            logs.push(logEntry);\n");
-    html.push_str("\n");
-    html.push_str("            console.log('[AMP] [' + timestamp + '] [' + phase + '] ' + message);\n");
-    html.push_str("\n");
+    html.push('\n');
+    html.push_str(
+        "            console.log('[AMP] [' + timestamp + '] [' + phase + '] ' + message);\n",
+    );
+    html.push('\n');
     html.push_str("            const logsDiv = document.getElementById('injection-logs');\n");
     html.push_str("            if (logsDiv) {\n");
     html.push_str("                const entry = document.createElement('div');\n");
@@ -821,35 +862,43 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("                logsDiv.scrollTop = logsDiv.scrollHeight;\n");
     html.push_str("            }\n");
     html.push_str("        }\n");
-    html.push_str("\n");
+    html.push('\n');
     html.push_str("        function updateStatus(status) {\n");
     html.push_str("            const statusDiv = document.getElementById('injection-status');\n");
     html.push_str("            if (statusDiv) {\n");
     html.push_str("                statusDiv.textContent = status;\n");
     html.push_str("            }\n");
     html.push_str("        }\n");
-    html.push_str("\n");
+    html.push('\n');
     html.push_str("        function switchTab(event, tabNumber) {\n");
     html.push_str("            const tabs = document.querySelectorAll('.tab-content');\n");
     html.push_str("            tabs.forEach(function(tab) { tab.classList.remove('active'); });\n");
     html.push_str("            const btns = document.querySelectorAll('.tab-btn');\n");
     html.push_str("            btns.forEach(function(btn) { btn.classList.remove('active'); });\n");
-    html.push_str("            document.getElementById('tab' + tabNumber).classList.add('active');\n");
+    html.push_str(
+        "            document.getElementById('tab' + tabNumber).classList.add('active');\n",
+    );
     html.push_str("            event.target.classList.add('active');\n");
     html.push_str("        }\n");
-    html.push_str("\n");
+    html.push('\n');
     html.push_str("        window.addEventListener('load', function() {\n");
     html.push_str("            updateStatus('📍 Phase 1: Page loaded');\n");
-    html.push_str("            logMessage('INIT', 'Page loaded with address: ' + addressToInject, 'info');\n");
-    html.push_str("\n");
+    html.push_str(
+        "            logMessage('INIT', 'Page loaded with address: ' + addressToInject, 'info');\n",
+    );
+    html.push('\n');
     html.push_str("            setTimeout(function() {\n");
-    html.push_str("                updateStatus('⏳ Phase 2: Waiting for StadsAtlas initialization');\n");
+    html.push_str(
+        "                updateStatus('⏳ Phase 2: Waiting for StadsAtlas initialization');\n",
+    );
     html.push_str("                logMessage('WAIT', 'Waiting 2 seconds for StadsAtlas to fully initialize...', 'warning');\n");
-    html.push_str("\n");
+    html.push('\n');
     html.push_str("                setTimeout(function() {\n");
     html.push_str("                    updateStatus('🔍 Phase 3: Searching for input fields');\n");
-    html.push_str("                    logMessage('SEARCH', 'Looking for search input fields...', 'info');\n");
-    html.push_str("\n");
+    html.push_str(
+        "                    logMessage('SEARCH', 'Looking for search input fields...', 'info');\n",
+    );
+    html.push('\n');
     html.push_str("                    const selectors = [\n");
     html.push_str("                        'input[placeholder*=\"ök\"]',\n");
     html.push_str("                        'input[placeholder*=\"dress\"]',\n");
@@ -860,7 +909,7 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("                        'input.search',\n");
     html.push_str("                        'input[type=\"text\"]:first-of-type'\n");
     html.push_str("                    ];\n");
-    html.push_str("\n");
+    html.push('\n');
     html.push_str("                    let found = false;\n");
     html.push_str("                    for (let selector of selectors) {\n");
     html.push_str("                        const inputs = document.querySelectorAll(selector);\n");
@@ -869,19 +918,19 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("                            for (let i = 0; i < inputs.length; i++) {\n");
     html.push_str("                                const input = inputs[i];\n");
     html.push_str("                                logMessage('INJECT', 'Attempting to inject into input #' + (i + 1), 'info');\n");
-    html.push_str("\n");
+    html.push('\n');
     html.push_str("                                input.focus();\n");
     html.push_str("                                input.value = addressToInject;\n");
     html.push_str("                                input.dispatchEvent(new Event('input', { bubbles: true }));\n");
     html.push_str("                                input.dispatchEvent(new Event('change', { bubbles: true }));\n");
     html.push_str("                                input.blur();\n");
-    html.push_str("\n");
+    html.push('\n');
     html.push_str("                                logMessage('INJECT', 'Value set: ' + input.value, 'success');\n");
     html.push_str("                                found = true;\n");
     html.push_str("                            }\n");
     html.push_str("                        }\n");
     html.push_str("                    }\n");
-    html.push_str("\n");
+    html.push('\n');
     html.push_str("                    if (found) {\n");
     html.push_str("                        updateStatus('✅ Phase 4: Injection successful');\n");
     html.push_str("                        logMessage('SUCCESS', 'Address injected successfully!', 'success');\n");
@@ -896,7 +945,7 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("    </script>\n");
     html.push_str("</body>\n");
     html.push_str("</html>");
-    
+
     html
 }
 
@@ -951,7 +1000,8 @@ fn open_browser_window(
 fn run_benchmark(sample_size: usize, cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
     // Load data
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for benchmarking...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data for benchmarking...");
 
     let (addresses, zones) = amp_core::api::api_miljo_only()?;
 
@@ -1214,7 +1264,8 @@ async fn check_updates(checksum_file: &str) -> Result<(), Box<dyn std::error::Er
     );
 
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Fetching remote data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Fetching remote data...");
 
     new_checksums.update_from_remote().await?;
     pb.finish_with_message("✓ Data fetched");

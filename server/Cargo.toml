@@ -13,6 +13,7 @@ rayon.workspace = true
 indicatif.workspace = true
 rand = "0.8"
 urlencoding = "2.1"
+selenium = "4.0"
 
 [[bin]]
 name = "amp-server"

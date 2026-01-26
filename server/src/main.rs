@@ -472,7 +472,7 @@ fn open_browser_windows(
             .args(&[
                 "/C",
                 &format!(
-                    "start "chrome" --new-window "{}" &&timeout /t 2 &&start "chrome" \"{}\"",
+                    "start chrome --new-window \"{}\" && timeout /t 2 && start chrome \"{}\"",
                     stadsatlas_data_url, correlation_data_url
                 ),
             ])
@@ -484,9 +484,7 @@ fn open_browser_windows(
     {
         // macOS: Open new Safari window with automation page, then correlation data in new tab
         let script = format!(
-            r#"open -n '{}' &
-            sleep 1
-            open -n '{}'""",
+            r#"open -n '{}' & sleep 1 && open -n '{}'""",
             stadsatlas_data_url, correlation_data_url
         );
         std::process::Command::new("bash")
@@ -516,68 +514,68 @@ fn open_browser_windows(
 /// Performs:
 /// 1. Click layers icon (first button)
 /// 2. Click chevron right (second button)
-/// 3. Click chevron right (third button) 
+/// 3. Click chevron right (third button)
 /// 4. Click chevron right (fourth button)
-/// 5. Click radio button (uncheck to enable milj   öparkering)
+/// 5. Click radio button (uncheck to enable miljöparkering)
 /// 6. Enter address in search field
 fn create_stadsatlas_automation_page(address: &str) -> String {
     format!(
         r#"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>StadsAtlas - Auto Lookup: {}</title>
-            <meta charset="UTF-8">
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }}
-                .container {{ background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: 0 auto; }}
-                h1 {{ color: #333; margin-bottom: 20px; }}
-                .instruction {{ background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #4caf50; }}
-                .note {{ color: #666; font-size: 14px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; }}
-                .address-display {{ background: #fff3e0; padding: 15px; border-radius: 4px; margin: 15px 0; font-weight: bold; }}
-                .steps {{ counter-reset: step-counter; margin: 20px 0; }}
-                .step {{ counter-increment: step-counter; margin: 15px 0; padding: 10px; background: #f5f5f5; border-radius: 4px; }}
-                .step::before {{ content: counter(step-counter); display: inline-block; background: #2196F3; color: white; width: 24px; height: 24px; border-radius: 50%; text-align: center; line-height: 24px; margin-right: 10px; font-weight: bold; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🗺️ StadsAtlas Auto-Lookup</h1>
-                <div class="address-display">{}</div>
-                
-                <div class="instruction">
-                    📌 This page will help you verify the correlation data in StadsAtlas.
-                </div>
+<html>
+<head>
+    <title>StadsAtlas - Auto Lookup: {}</title>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }}
+        .container {{ background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: 0 auto; }}
+        h1 {{ color: #333; margin-bottom: 20px; }}
+        .instruction {{ background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #4caf50; }}
+        .note {{ color: #666; font-size: 14px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; }}
+        .address-display {{ background: #fff3e0; padding: 15px; border-radius: 4px; margin: 15px 0; font-weight: bold; }}
+        .steps {{ counter-reset: step-counter; margin: 20px 0; }}
+        .step {{ counter-increment: step-counter; margin: 15px 0; padding: 10px; background: #f5f5f5; border-radius: 4px; }}
+        .step::before {{ content: counter(step-counter); display: inline-block; background: #2196F3; color: white; width: 24px; height: 24px; border-radius: 50%; text-align: center; line-height: 24px; margin-right: 10px; font-weight: bold; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗺️ StadsAtlas Auto-Lookup</h1>
+        <div class="address-display">{}</div>
+        
+        <div class="instruction">
+            📌 This page will help you verify the correlation data in StadsAtlas.
+        </div>
 
-                <div class="steps">
-                    <div class="step">
-                        Click the <strong>layers icon</strong> (first icon in top toolbar)
-                    </div>
-                    <div class="step">
-                        Click the <strong>chevron right</strong> button (arrow pointing right)
-                    </div>
-                    <div class="step">
-                        Click the <strong>chevron right</strong> button again
-                    </div>
-                    <div class="step">
-                        Click the <strong>chevron right</strong> button once more
-                    </div>
-                    <div class="step">
-                        Click the <strong>radio button</strong> (circle) to enable <strong>Miljöparkering</strong>
-                    </div>
-                    <div class="step">
-                        Click in the <strong>"Sök adresser eller platser..."</strong> search field at the top
-                    </div>
-                    <div class="step">
-                        Enter this address: <strong>{}</strong>
-                    </div>
-                </div>
-
-                <div class="note">
-                    💡 <strong>Tip:</strong> Use the second tab to see the correlation result data while you verify it in StadsAtlas.
-                </div>
+        <div class="steps">
+            <div class="step">
+                Click the <strong>layers icon</strong> (first icon in top toolbar)
             </div>
-        </body>
-        </html>""",
+            <div class="step">
+                Click the <strong>chevron right</strong> button (arrow pointing right)
+            </div>
+            <div class="step">
+                Click the <strong>chevron right</strong> button again
+            </div>
+            <div class="step">
+                Click the <strong>chevron right</strong> button once more
+            </div>
+            <div class="step">
+                Click the <strong>radio button</strong> (circle) to enable <strong>Miljöparkering</strong>
+            </div>
+            <div class="step">
+                Click in the <strong>"Sök adresser eller platser..."</strong> search field at the top
+            </div>
+            <div class="step">
+                Enter this address: <strong>{}</strong>
+            </div>
+        </div>
+
+        <div class="note">
+            💡 <strong>Tip:</strong> Use the second tab to see the correlation result data while you verify it in StadsAtlas.
+        </div>
+    </div>
+</body>
+</html>""",
         address, address, address
     )
 }
@@ -585,62 +583,58 @@ fn create_stadsatlas_automation_page(address: &str) -> String {
 /// Create the correlation result data display page
 fn create_correlation_result_page(result: &CorrelationResult) -> String {
     let matches_html = format_matches_html(result);
-    
+
     format!(
         r#"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Correlation Result - {}</title>
-            <meta charset="UTF-8">
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }}
-                .container {{ background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: 0 auto; }}
-                h1 {{ color: #333; margin-bottom: 20px; }}
-                .field {{ margin: 20px 0; }}
-                .label {{ font-weight: bold; color: #666; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }}
-                .value {{ color: #333; padding: 10px; background: #f9f9f9; border-radius: 4px; border-left: 3px solid #2196F3; }}
-                .match {{ background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #4caf50; }}
-                .match strong {{ color: #2e7d32; }}
-                .no-match {{ background: #ffebee; padding: 15px; border-radius: 4px; border-left: 4px solid #c62828; }}
-                .match-item {{ margin-bottom: 10px; }}
-                .distance {{ color: #e67e22; font-weight: bold; }}
-                .info {{ color: #7f8c8d; font-size: 12px; margin-top: 5px; }}
-                h2 {{ color: #555; font-size: 16px; margin-top: 30px; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>📊 Correlation Result Data</h1>
-                
-                <div class="field">
-                    <div class="label">Address</div>
-                    <div class="value">{}</div>
-                </div>
-                
-                <div class="field">
-                    <div class="label">Postal Code</div>
-                    <div class="value">{}</div>
-                </div>
-                
-                <div class="field">
-                    <div class="label">Dataset Source</div>
-                    <div class="value">{}</div>
-                </div>
-                
-                <h2>Matched Zones</h2>
-                {}
-                
-                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #999; font-size: 12px;">
-                    Compare this data with what you see in StadsAtlas to verify correlation accuracy.
-                </div>
-            </div>
-        </body>
-        </html>""",
-        result.address,
-        result.address,
-        result.postnummer,
-        result.dataset_source(),
-        matches_html
+<html>
+<head>
+    <title>Correlation Result - {}</title>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }}
+        .container {{ background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: 0 auto; }}
+        h1 {{ color: #333; margin-bottom: 20px; }}
+        .field {{ margin: 20px 0; }}
+        .label {{ font-weight: bold; color: #666; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }}
+        .value {{ color: #333; padding: 10px; background: #f9f9f9; border-radius: 4px; border-left: 3px solid #2196F3; }}
+        .match {{ background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #4caf50; }}
+        .match strong {{ color: #2e7d32; }}
+        .no-match {{ background: #ffebee; padding: 15px; border-radius: 4px; border-left: 4px solid #c62828; }}
+        .match-item {{ margin-bottom: 10px; }}
+        .distance {{ color: #e67e22; font-weight: bold; }}
+        .info {{ color: #7f8c8d; font-size: 12px; margin-top: 5px; }}
+        h2 {{ color: #555; font-size: 16px; margin-top: 30px; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Correlation Result Data</h1>
+        
+        <div class="field">
+            <div class="label">Address</div>
+            <div class="value">{}</div>
+        </div>
+        
+        <div class="field">
+            <div class="label">Postal Code</div>
+            <div class="value">{}</div>
+        </div>
+        
+        <div class="field">
+            <div class="label">Dataset Source</div>
+            <div class="value">{}</div>
+        </div>
+        
+        <h2>Matched Zones</h2>
+        {}
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #999; font-size: 12px;">
+            Compare this data with what you see in StadsAtlas to verify correlation accuracy.
+        </div>
+    </div>
+</body>
+</html>""",
+        result.address, result.address, result.postnummer, result.dataset_source(), matches_html
     )
 }
 
@@ -694,6 +688,7 @@ fn format_matches_html(result: &CorrelationResult) -> String {
 }
 
 type Dat = Result<Vec<(String, f64, String)>, Box<dyn std::error::Error>>;
+
 /// Correlate addresses with a dataset using the specified algorithm and distance cutoff
 fn correlate_dataset(
     algorithm: &AlgorithmChoice,
@@ -952,6 +947,7 @@ type Alg<'a> = Vec<(
     &'a str,
     fn(&Benchmarker, &[AdressClean], &ProgressBar, &AtomicUsize, &Arc<AtomicUsize>, f64) -> (),
 )>;
+
 fn benchmark_selected_with_progress(
     benchmarker: &Benchmarker,
     sample_size: usize,

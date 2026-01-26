@@ -6,16 +6,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="stadsatlas_interface.css">
     <style>
-        /* Ensure map container has explicit dimensions for Origo/OpenLayers rendering */
+        /* CRITICAL: Force explicit dimensions for Origo/OpenLayers rendering */
+        /* These inline styles override any conflicting CSS and ensure map container has size */
         html, body {
-            height: 100%;
-            width: 100%;
-            margin: 0;
-            padding: 0;
+            height: 100% !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
         body {
-            display: flex;
-            flex-direction: column;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        .map-section {
+            height: 550px !important;
+            min-height: 550px !important;
+            flex-shrink: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        .map-container {
+            height: 100% !important;
+            width: 100% !important;
+            flex: 1 !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        .control-panel {
+            flex-shrink: 0 !important;
+        }
+        .stadsatlas-iframe {
+            width: 100% !important;
+            height: 100% !important;
         }
     </style>
 </head>
@@ -40,12 +63,12 @@
     <!-- Tab Container - Below the map -->
     <div class="tab-container">
         <div class="tab-buttons">
-            <button class="tab-btn active" onclick="switchTab(event, 1)">📋 Instructions</button>
-            <button class="tab-btn" onclick="switchTab(event, 2)">📊 Data</button>
+            <button class="tab-btn" onclick="switchTab(event, 1)">📋 Instructions</button>
+            <button class="tab-btn active" onclick="switchTab(event, 2)">📊 Data</button>
             <button class="tab-btn" onclick="switchTab(event, 3)">🐛 Debug</button>
         </div>
         
-        <div id="tab1" class="tab-content active">
+        <div id="tab1" class="tab-content">
             <h1>📋 Address Verification Instructions</h1>
             <div class="instruction">✓ Follow these steps to verify the address</div>
             <div class="address-display">{ADDRESS}</div>
@@ -59,7 +82,7 @@
             <div class="note">💡 <strong>How it works:</strong> The API returns coordinates in WKT POINT format (POINT(X Y)) which we parse and pass directly to StadsAtlas. The map displays the pin at those coordinates and attempts to activate the miljödata layer.</div>
         </div>
         
-        <div id="tab2" class="tab-content">
+        <div id="tab2" class="tab-content active">
             <h1>📊 Correlation Result Data</h1>
             <div class="field">
                 <div class="label">Address</div>

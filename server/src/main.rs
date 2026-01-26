@@ -595,10 +595,11 @@ fn run_test_mode(
     let selected: Vec<_> = sampled.iter().take(actual_windows).collect();
 
     println!("\n🌐 Opening {} browser windows...", actual_windows);
-    println!("   Each window has 3 integrated tabs in a single page:");
+    println!("   Each window has 4 integrated tabs in a single page:");
     println!("   - Tab 1: Live StadsAtlas iframe");
     println!("   - Tab 2: Step-by-step instructions");
-    println!("   - Tab 3: Correlation data visualization\n");
+    println!("   - Tab 3: Correlation data visualization");
+    println!("   - Tab 4: Debug console with injection logs\n");
 
     // Open browser windows with delays to prevent overwhelming the system
     for (idx, result) in selected.iter().enumerate() {
@@ -661,16 +662,40 @@ fn get_browser_executable() -> String {
     "firefox".to_string()
 }
 
-/// Create a single HTML page with 3 integrated tabs
+fn format_matches_html(result: &CorrelationResult) -> String {
+    match (&result.miljo_match, &result.parkering_match) {
+        (Some((dist_m, info_m)), Some((dist_p, info_p))) => {
+            format!(
+                "<div class=\"match\">\n    <div class=\"match-item\">\n        <strong>🌍 Miljödata</strong><br>\n        <span class=\"distance\">{:.2}m away</span><br>\n        <div class=\"info\">{}</div>\n    </div>\n</div>\n<div class=\"match\">\n    <div class=\"match-item\">\n        <strong>🅿️ Parkering</strong><br>\n        <span class=\"distance\">{:.2}m away</span><br>\n        <div class=\"info\">{}</div>\n    </div>\n</div>",
+                dist_m, info_m, dist_p, info_p
+            )
+        }
+        (Some((dist, info)), None) => {
+            format!(
+                "<div class=\"match\">\n    <div class=\"match-item\">\n        <strong>🌍 Miljödata</strong><br>\n        <span class=\"distance\">{:.2}m away</span><br>\n        <div class=\"info\">{}</div>\n    </div>\n</div>",
+                dist, info
+            )
+        }
+        (None, Some((dist, info))) => {
+            format!(
+                "<div class=\"match\">\n    <div class=\"match-item\">\n        <strong>🅿️ Parkering</strong><br>\n        <span class=\"distance\">{:.2}m away</span><br>\n        <div class=\"info\">{}</div>\n    </div>\n</div>",
+                dist, info
+            )
+        }
+        (None, None) => "<div class='no-match'>✗ No matches found</div>".to_string(),
+    }
+}
+
+/// Create a single HTML page with 4 integrated tabs
 /// Tab 1: StadsAtlas Live Iframe
 /// Tab 2: Instructions
 /// Tab 3: Correlation Data
-/// Includes integrated injection script v2 for StadsAtlas address injection
+/// Tab 4: Debug Console
 fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> String {
     let matches_html = format_matches_html(result);
-
-    format!(
-        r#"<!DOCTYPE html>
+    let address_escaped = address.replace('"', "&quot;");
+    
+    let html = format!(r#"<!DOCTYPE html>
 <html>
 <head>
     <title>AMP Testing Interface - {}</title>
@@ -971,21 +996,11 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
             <div class="address-display">{}</div>
             
             <div class="steps">
-                <div class="step">
-                    Click the <strong>menu icon</strong> (hamburger menu or layers button in top left)
-                </div>
-                <div class="step">
-                    Look for the <strong>Parking section</strong>
-                </div>
-                <div class="step">
-                    Find and enable <strong>Miljöparkering</strong> (Environmental Parking)
-                </div>
-                <div class="step">
-                    Click in the <strong>search field</strong> at the top
-                </div>
-                <div class="step">
-                    Enter this address: <strong>{}</strong>
-                </div>
+                <div class="step">Click the <strong>menu icon</strong> (hamburger menu or layers button in top left)</div>
+                <div class="step">Look for the <strong>Parking section</strong></div>
+                <div class="step">Find and enable <strong>Miljöparkering</strong> (Environmental Parking)</div>
+                <div class="step">Click in the <strong>search field</strong> at the top</div>
+                <div class="step">Enter this address: <strong>{}</strong></div>
             </div>
             
             <div class="note">
@@ -1025,7 +1040,7 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
             <h1>🐛 Injection Debug Console</h1>
             
             <div class="note" style="margin-bottom: 20px;">
-                <strong>Use browser DevTools Console (F12) to see full logs.</strong> This is a live display of injection script logs.
+                <strong>Open browser DevTools Console (F12) to see detailed logs.</strong> All messages start with <code>[AMP]</code>.
             </div>
             
             <div class="field">
@@ -1049,244 +1064,217 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
             </div>
             
             <div class="note" style="margin-top: 30px;">
-                <strong>Commands available in browser console:</strong><br>
+                <strong>Browser console commands:</strong><br/>
                 <code style="background: #f9f9f9; padding: 5px; display: block; margin-top: 10px;">
-                    window.ampInject.phase() - Current injection phase (1-5)<br>
-                    window.ampInject.debug() - Show page state<br>
-                    window.ampInject.logs - Array of all log messages<br>
-                    window.ampInject.retry() - Restart injection sequence
+                    window.ampInject.phase() // Current phase (1-6)<br/>
+                    window.ampInject.debug() // Show page state<br/>
+                    window.ampInject.logs // Array of all log messages<br/>
+                    window.ampInject.retry() // Restart injection
                 </code>
             </div>
         </div>
     </div>
     
     <script>
-        /**
-         * COMPREHENSIVE StadsAtlas Injection Script v3
-         * With detailed error logging for troubleshooting
-         */
-        
         const InjectionLogger = {
             logs: [],
             maxLogs: 100,
             
-            log(level, message) {{
+            log(level, message) {
                 const timestamp = new Date().toLocaleTimeString();
-                const entry = `[${{timestamp}}] [${{level}}] ${{message}}`;
+                const entry = "[" + timestamp + "] [" + level + "] " + message;
                 this.logs.push(entry);
                 
-                // Keep only recent logs
-                if (this.logs.length > this.maxLogs) {{
+                if (this.logs.length > this.maxLogs) {
                     this.logs.shift();
-                }}
+                }
                 
-                // Console output
-                console.log(`[AMP] ${{message}}`);
-                
-                // Update UI
+                console.log("[AMP] " + message);
                 updateDebugUI();
-            }},
+            },
             
-            error(message) {{ this.log('ERROR', message); }},
-            info(message) {{ this.log('INFO', message); }},
-            success(message) {{ this.log('SUCCESS', message); }},
-            debug(message) {{ this.log('DEBUG', message); }}
+            error(message) { this.log('ERROR', message); },
+            info(message) { this.log('INFO', message); },
+            success(message) { this.log('SUCCESS', message); },
+            debug(message) { this.log('DEBUG', message); }
         };
         
-        window.ampInject = {{
+        window.ampInject = {
             phase: 0,
             maxAttempts: 5,
             attempt: 0,
             startTime: Date.now(),
-            maxWaitTime: 20000, // 20 seconds
+            maxWaitTime: 20000,
             logs: [],
             
-            phase() {{ return this.phase; }},
-            debug() {{
-                return {{
+            phase() { return this.phase; },
+            debug() {
+                return {
                     phase: this.phase,
                     attempt: this.attempt,
                     inputs: document.querySelectorAll('input').length,
                     buttons: document.querySelectorAll('button').length,
                     elapsed: Date.now() - this.startTime
-                }};
-            }},
-            retry() {{
+                };
+            },
+            retry() {
                 InjectionLogger.info('Manual retry requested');
                 this.phase = 0;
                 this.attempt = 0;
                 startInjection();
-            }}
-        }};
+            }
+        };
         
-        function updateDebugUI() {{
+        function updateDebugUI() {
             const statusEl = document.getElementById('injection-status');
             const phaseEl = document.getElementById('current-phase');
             const outputEl = document.getElementById('console-output');
             
-            if (statusEl) {{
-                const phases = ['Waiting', 'Loading', 'Searching DOM', 'Clicking', 'Finding Input', 'Injecting'];
+            if (statusEl) {
+                const phases = ['Waiting', 'Loading', 'Searching DOM', 'Clicking', 'Finding Input', 'Injecting', 'Complete'];
                 statusEl.textContent = phases[window.ampInject.phase] || 'Unknown';
-            }}
+            }
             
-            if (phaseEl) {{
+            if (phaseEl) {
                 const timeElapsed = Date.now() - window.ampInject.startTime;
-                phaseEl.textContent = `Phase ${{window.ampInject.phase}} (attempt ${{window.ampInject.attempt}}) - ${{timeElapsed}}ms elapsed`;
-            }}
+                phaseEl.textContent = 'Phase ' + window.ampInject.phase + ' (attempt ' + window.ampInject.attempt + ') - ' + timeElapsed + 'ms elapsed';
+            }
             
-            if (outputEl) {{
-                outputEl.innerHTML = InjectionLogger.logs
-                    .map(log => {{
-                        let className = '';
-                        if (log.includes('[ERROR]')) className = 'error';
-                        else if (log.includes('[SUCCESS]')) className = 'success';
-                        else if (log.includes('[INFO]')) className = 'info';
-                        return `<div class="${{className}}">${{log}}</div>`;
-                    }})
-                    .join('');
+            if (outputEl) {
+                const html = InjectionLogger.logs.map(log => {
+                    let className = '';
+                    if (log.indexOf('[ERROR]') > -1) className = 'error';
+                    else if (log.indexOf('[SUCCESS]') > -1) className = 'success';
+                    else if (log.indexOf('[INFO]') > -1) className = 'info';
+                    return '<div class="' + className + '">' + log + '</div>';
+                }).join('');
+                outputEl.innerHTML = html;
                 outputEl.scrollTop = outputEl.scrollHeight;
-            }}
-        }}
+            }
+        }
         
-        function retryInjection() {{
+        function retryInjection() {
             InjectionLogger.info('User clicked retry button');
             window.ampInject.retry();
-        }}
+        }
         
-        function clearConsole() {{
+        function clearConsole() {
             InjectionLogger.logs = [];
             updateDebugUI();
-        }}
+        }
         
-        window.addEventListener('load', () => {{
+        window.addEventListener('load', function() {
             InjectionLogger.success('Page loaded, starting injection');
             startInjection();
-        }});
+        });
         
-        function startInjection() {{
+        function startInjection() {
             window.ampInject.phase = 1;
             window.ampInject.attempt++;
-            InjectionLogger.info(`Starting injection (attempt ${{window.ampInject.attempt}})`);
-            
-            // Give page time to fully render
+            InjectionLogger.info('Starting injection (attempt ' + window.ampInject.attempt + ')');
             setTimeout(attemptInjection, 1000);
-        }}
+        }
         
-        function attemptInjection() {{
-            try {{
+        function attemptInjection() {
+            try {
                 InjectionLogger.debug('Scanning for input fields...');
                 const inputs = document.querySelectorAll('input');
-                InjectionLogger.debug(`Found ${{inputs.length}} input elements`);
+                InjectionLogger.debug('Found ' + inputs.length + ' input elements');
                 
-                // Log all inputs for debugging
-                inputs.forEach((inp, i) => {{
-                    const desc = `Input ${{i}}: type=${{inp.type}}, placeholder=${{inp.placeholder || 'none'}}, class=${{inp.className || 'none'}}`;
+                inputs.forEach(function(inp, i) {
+                    const desc = 'Input ' + i + ': type=' + inp.type + ', placeholder=' + (inp.placeholder || 'none') + ', class=' + (inp.className || 'none');
                     InjectionLogger.debug(desc);
-                }});
+                });
                 
-                // Try to find search input
                 let searchInput = null;
                 const searchTerms = ['search', 'sök', 'adress', 'address', 'location'];
                 
-                for (const term of searchTerms) {{
-                    for (const inp of inputs) {{
-                        const hasAttr = inp.placeholder?.toLowerCase().includes(term) ||
-                                      inp.className?.toLowerCase().includes(term) ||
-                                      inp.id?.toLowerCase().includes(term) ||
-                                      inp.name?.toLowerCase().includes(term);
+                for (let ti = 0; ti < searchTerms.length; ti++) {
+                    const term = searchTerms[ti];
+                    for (let i = 0; i < inputs.length; i++) {
+                        const inp = inputs[i];
+                        const hasAttr = (inp.placeholder && inp.placeholder.toLowerCase().indexOf(term) > -1) ||
+                                      (inp.className && inp.className.toLowerCase().indexOf(term) > -1) ||
+                                      (inp.id && inp.id.toLowerCase().indexOf(term) > -1) ||
+                                      (inp.name && inp.name.toLowerCase().indexOf(term) > -1);
                         
-                        if (hasAttr && inp.type !== 'hidden') {{
+                        if (hasAttr && inp.type !== 'hidden') {
                             searchInput = inp;
-                            InjectionLogger.success(`Found search input with term '${{term}}'`);
+                            InjectionLogger.success('Found search input with term "' + term + '"');
                             break;
-                        }}
-                    }}
+                        }
+                    }
                     if (searchInput) break;
-                }}
+                }
                 
-                if (searchInput) {{
+                if (searchInput) {
                     window.ampInject.phase = 5;
                     InjectionLogger.info('Attempting to inject address...');
                     injectAddress(searchInput);
-                }} else {{
+                } else {
                     InjectionLogger.error('No suitable input found');
                     
-                    if (window.ampInject.attempt < window.ampInject.maxAttempts) {{
+                    if (window.ampInject.attempt < window.ampInject.maxAttempts) {
                         const delay = 2000 * window.ampInject.attempt;
-                        InjectionLogger.info(`Retrying in ${{delay}}ms...`);
+                        InjectionLogger.info('Retrying in ' + delay + 'ms...');
                         setTimeout(attemptInjection, delay);
-                    }} else {{
+                    } else {
                         InjectionLogger.error('Max attempts reached. Manual intervention required.');
-                    }}
-                }}
-            }} catch (err) {{
-                InjectionLogger.error(`Exception: ${{err.message}}`);
+                    }
+                }
+            } catch (err) {
+                InjectionLogger.error('Exception: ' + err.message);
                 console.error('Full error:', err);
-            }}
+            }
             
             updateDebugUI();
-        }}
+        }
         
-        function injectAddress(input) {{
-            try {{
+        function injectAddress(input) {
+            try {
                 const address = '{}';
-                InjectionLogger.info(`Injecting: "${{address}}"`);
+                InjectionLogger.info('Injecting: "' + address + '"');
                 
-                // Focus and clear
                 input.focus();
                 input.click();
                 input.value = '';
-                
-                // Inject value
                 input.value = address;
                 
-                // Trigger all possible events
-                const events = [
-                    new Event('input', {{ bubbles: true, cancelable: true }}),
-                    new Event('change', {{ bubbles: true, cancelable: true }}),
-                    new Event('keyup', {{ bubbles: true, cancelable: true }}),
-                    new KeyboardEvent('keydown', {{ key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }}),
-                    new KeyboardEvent('keypress', {{ key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }})
-                ];
+                const evt1 = new Event('input', { bubbles: true, cancelable: true });
+                const evt2 = new Event('change', { bubbles: true, cancelable: true });
+                const evt3 = new Event('keyup', { bubbles: true, cancelable: true });
                 
-                events.forEach(evt => {{
-                    try {{
-                        input.dispatchEvent(evt);
-                    }} catch (e) {{
-                        InjectionLogger.debug(`Event ${{evt.type}} dispatch had error: ${{e.message}}`);
-                    }}
-                }});
+                input.dispatchEvent(evt1);
+                input.dispatchEvent(evt2);
+                input.dispatchEvent(evt3);
                 
-                // Check if value was set
-                setTimeout(() => {{
-                    if (input.value === address) {{
-                        InjectionLogger.success(`Address successfully injected: "${{address}}"`);
+                setTimeout(function() {
+                    if (input.value === address) {
+                        InjectionLogger.success('Address successfully injected: "' + address + '"');
                         window.ampInject.phase = 6;
-                    }} else {{
-                        InjectionLogger.error(`Address injection failed. Expected "${{address}}", got "${{input.value}}"`);
-                    }}
+                    } else {
+                        InjectionLogger.error('Address injection failed. Expected "' + address + '", got "' + input.value + '"');
+                    }
                     updateDebugUI();
-                }}, 500);
+                }, 500);
                 
-            }} catch (err) {{
-                InjectionLogger.error(`Injection error: ${{err.message}}`);
+            } catch (err) {
+                InjectionLogger.error('Injection error: ' + err.message);
                 console.error('Full injection error:', err);
-            }}
-        }}
+            }
+        }
         
-        // Tab switching
-        function switchTab(event, tabNumber) {{
+        function switchTab(event, tabNumber) {
             const tabs = document.querySelectorAll('.tab-content');
-            tabs.forEach(tab => tab.classList.remove('active'));
+            tabs.forEach(function(tab) { tab.classList.remove('active'); });
             
             const btns = document.querySelectorAll('.tab-btn');
-            btns.forEach(btn => btn.classList.remove('active'));
+            btns.forEach(function(btn) { btn.classList.remove('active'); });
             
             document.getElementById('tab' + tabNumber).classList.add('active');
             event.target.classList.add('active');
-        }}
+        }
         
-        // Initialize
         updateDebugUI();
     </script>
 </body>
@@ -1299,57 +1287,10 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
         result.postnummer,
         result.dataset_source(),
         matches_html,
-        address
-    )
-}
-
-fn format_matches_html(result: &CorrelationResult) -> String {
-    match (&result.miljo_match, &result.parkering_match) {
-        (Some((dist_m, info_m)), Some((dist_p, info_p))) => {
-            format!(
-                r#"<div class="match">
-    <div class="match-item">
-        <strong>🌍 Miljödata</strong><br>
-        <span class="distance">{:.2}m away</span><br>
-        <div class="info">{}</div>
-    </div>
-</div>
-<div class="match">
-    <div class="match-item">
-        <strong>🅿️ Parkering</strong><br>
-        <span class="distance">{:.2}m away</span><br>
-        <div class="info">{}</div>
-    </div>
-</div>"#,
-                dist_m, info_m, dist_p, info_p
-            )
-        }
-        (Some((dist, info)), None) => {
-            format!(
-                r#"<div class="match">
-    <div class="match-item">
-        <strong>🌍 Miljödata</strong><br>
-        <span class="distance">{:.2}m away</span><br>
-        <div class="info">{}</div>
-    </div>
-</div>"#,
-                dist, info
-            )
-        }
-        (None, Some((dist, info))) => {
-            format!(
-                r#"<div class="match">
-    <div class="match-item">
-        <strong>🅿️ Parkering</strong><br>
-        <span class="distance">{:.2}m away</span><br>
-        <div class="info">{}</div>
-    </div>
-</div>"#,
-                dist, info
-            )
-        }
-        (None, None) => "<div class='no-match'>✗ No matches found</div>".to_string(),
-    }
+        address_escaped
+    );
+    
+    html
 }
 
 /// Open a single browser window with integrated tabbed interface
@@ -1373,29 +1314,29 @@ fn open_browser_window(
 
     // Try to open window using different methods depending on OS
     #[cfg(target_os = "windows")]
-    {{
+    {
         std::process::Command::new("cmd")
             .args(&["/C", &format!("start chrome \"{}\"", file_url)])
             .output()
             .ok();
-    }}
+    }
 
     #[cfg(target_os = "macos")]
-    {{
+    {
         std::process::Command::new("bash")
             .args(&["-c", &format!("open '{}'", file_url)])
             .output()
             .ok();
-    }}
+    }
 
     #[cfg(target_os = "linux")]
-    {{
+    {
         let browser = get_browser_executable();
         std::process::Command::new(&browser)
             .arg(&file_url)
             .spawn()
             .ok();
-    }}
+    }
 
     Ok(())
 }

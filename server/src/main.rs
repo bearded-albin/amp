@@ -356,8 +356,7 @@ fn run_correlation(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Loading data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -389,8 +388,7 @@ fn run_correlation(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?
-            .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?            .progress_chars("█▓▒░ "),
     );
 
     // Correlate with miljödata
@@ -534,8 +532,7 @@ fn run_test_mode(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Loading data for testing...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for testing...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -559,8 +556,7 @@ fn run_test_mode(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?
-            .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?            .progress_chars("█▓▒░ "),
     );
 
     let miljo_results = correlate_dataset(&algorithm, &addresses, &miljodata, cutoff, &pb)?;
@@ -598,9 +594,10 @@ fn run_test_mode(
     let selected: Vec<_> = sampled.iter().take(actual_windows).collect();
 
     println!("\n🌐 Opening {} browser windows...", actual_windows);
-    println!("   Each window has 2 tabs:");
+    println!("   Each window has 3 tabs:");
     println!("   - Tab 1: StadsAtlas with automated address lookup");
-    println!("   - Tab 2: Raw correlation data\n");
+    println!("   - Tab 2: Instructions with address steps");
+    println!("   - Tab 3: Raw correlation data\n");
 
     // Open browser windows with delays to prevent overwhelming the system
     for (idx, result) in selected.iter().enumerate() {
@@ -663,84 +660,7 @@ fn get_browser_executable() -> String {
     "firefox".to_string()
 }
 
-/// Open a new browser window with 2 tabs:
-/// Tab 1: StadsAtlas live URL for address lookup
-/// Tab 2: Correlation result data
-fn open_browser_windows(
-    result: &&CorrelationResult,
-    _window_idx: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let address = &result.address;
-
-    // First tab: Open StadsAtlas live URL with address parameter
-    let stadsatlas_url = format!(
-        "https://stadsatlas.malmo.se/stadsatlas/?address={}",
-        urlencoding::encode(address)
-    );
-
-    // Create correlation result data page
-    let correlation_data = create_correlation_result_page(result);
-    let correlation_data_url = format!(
-        "data:text/html;charset=utf-8,{}",
-        urlencoding::encode(&correlation_data)
-    );
-
-    // Try to open windows using different methods depending on OS
-    #[cfg(target_os = "windows")]
-    {
-        // Windows: Open new browser window with both URLs
-        std::process::Command::new("cmd")
-            .args(&[
-                "/C",
-                &format!(
-                    "start chrome \"{}\" && timeout /t 2 && start chrome \"{}\"",
-                    stadsatlas_url, correlation_data_url
-                ),
-            ])
-            .output()
-            .ok();
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        // macOS: Open new Safari window with StadsAtlas, then correlation data in new tab
-        let script = format!(
-            r#"open '{}' & sleep 1 && open '{}' "#,
-            stadsatlas_url, correlation_data_url
-        );
-        std::process::Command::new("bash")
-            .args(&["-c", &script])
-            .output()
-            .ok();
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        // Linux: Open browser directly with StadsAtlas URL first, then correlation data
-        let browser = get_browser_executable();
-
-        // Open first tab with StadsAtlas
-        std::process::Command::new(&browser)
-            .arg(&stadsatlas_url)
-            .spawn()
-            .ok();
-
-        // Small delay before opening second tab
-        thread::sleep(Duration::from_millis(1000));
-
-        // Open second tab with correlation data
-        std::process::Command::new(&browser)
-            .arg(&correlation_data_url)
-            .spawn()
-            .ok();
-    }
-
-    Ok(())
-}
-
 /// Create an HTML page that will automatically interact with StadsAtlas
-#[deprecated]
-#[allow(dead_code)]
 fn create_stadsatlas_automation_page(address: &str) -> String {
     format!(
         r#"<!DOCTYPE html>
@@ -794,7 +714,7 @@ fn create_stadsatlas_automation_page(address: &str) -> String {
         </div>
 
         <div class="note">
-            💡 <strong>Tip:</strong> Use the second tab to see the correlation result data while you verify it in StadsAtlas.
+            💡 <strong>Tip:</strong> Use the third tab to see the correlation result data while you verify it in StadsAtlas (first tab).
         </div>
     </div>
 </body>
@@ -914,11 +834,101 @@ fn format_matches_html(result: &CorrelationResult) -> String {
     }
 }
 
+/// Open a new browser window with 3 tabs:
+/// Tab 1: StadsAtlas live URL for address lookup
+/// Tab 2: Instructions for manual StadsAtlas navigation
+/// Tab 3: Correlation result data
+fn open_browser_windows(
+    result: &&CorrelationResult,
+    _window_idx: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let address = &result.address;
+
+    // Tab 1: Open StadsAtlas live URL
+    let stadsatlas_url = format!(
+        "https://stadsatlas.malmo.se/stadsatlas/"
+    );
+
+    // Tab 2: Instructions page
+    let instructions_page = create_stadsatlas_automation_page(address);
+    let instructions_url = format!(
+        "data:text/html;charset=utf-8,{}",
+        urlencoding::encode(&instructions_page)
+    );
+
+    // Tab 3: Correlation result data page
+    let correlation_data = create_correlation_result_page(result);
+    let correlation_data_url = format!(
+        "data:text/html;charset=utf-8,{}",
+        urlencoding::encode(&correlation_data)
+    );
+
+    // Try to open windows using different methods depending on OS
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: Open new browser window with all three tabs
+        std::process::Command::new("cmd")
+            .args(&[
+                "/C",
+                &format!(
+                    "start chrome \"{}\" && timeout /t 1 && start chrome \"{}\" && timeout /t 1 && start chrome \"{}\"",
+                    stadsatlas_url, instructions_url, correlation_data_url
+                ),
+            ])
+            .output()
+            .ok();
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // macOS: Open tabs in order
+        let script = format!(
+            r#"open '{}' & sleep 1 && open '{}' & sleep 1 && open '{}' "#,
+            stadsatlas_url, instructions_url, correlation_data_url
+        );
+        std::process::Command::new("bash")
+            .args(&["-c", &script])
+            .output()
+            .ok();
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Linux: Open browser with all three URLs
+        let browser = get_browser_executable();
+
+        // Open first tab with StadsAtlas
+        std::process::Command::new(&browser)
+            .arg(&stadsatlas_url)
+            .spawn()
+            .ok();
+
+        // Small delay before opening second tab
+        thread::sleep(Duration::from_millis(800));
+
+        // Open second tab with instructions
+        std::process::Command::new(&browser)
+            .arg(&instructions_url)
+            .spawn()
+            .ok();
+
+        // Small delay before opening third tab
+        thread::sleep(Duration::from_millis(800));
+
+        // Open third tab with correlation data
+        std::process::Command::new(&browser)
+            .arg(&correlation_data_url)
+            .spawn()
+            .ok();
+    }
+
+    Ok(())
+}
+
 fn run_benchmark(sample_size: usize, cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
     // Load data
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Loading data for benchmarking...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for benchmarking...");
 
     let (addresses, zones) = amp_core::api::api_miljo_only()?;
 
@@ -1181,8 +1191,7 @@ async fn check_updates(checksum_file: &str) -> Result<(), Box<dyn std::error::Er
     );
 
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Fetching remote data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Fetching remote data...");
 
     new_checksums.update_from_remote().await?;
     pb.finish_with_message("✓ Data fetched");

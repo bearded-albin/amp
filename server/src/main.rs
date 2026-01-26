@@ -1,5 +1,5 @@
 //! AMP Server - Address-Parking Correlation CLI
-//! Supports multiple correlation algorithms, benchmarking, and dual dataset correlation
+//! Supports multiple correlation algorithms, benchmarking, testing with visual verification
 
 use amp_core::api::api;
 use amp_core::benchmark::Benchmarker;
@@ -14,9 +14,12 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rayon::prelude::*;
+use std::env;
 use std::io::{self, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread;
+use std::time::Duration;
 use std::time::Instant;
 
 #[derive(Parser)]
@@ -32,8 +35,28 @@ struct Cli {
 enum Commands {
     /// Run correlation with specified algorithm
     Correlate {
-        #[arg(short, long, value_enum, default_value_t = AlgorithmChoice::RTree)]
+        #[arg(short, long, value_enum, default_value_t = AlgorithmChoice::KDTree)]
         algorithm: AlgorithmChoice,
+
+        #[arg(short, long, default_value_t = 50., help = "Distance cutoff in meters")]
+        cutoff: f64,
+    },
+
+    /// Test correlation with visual browser verification
+    Test {
+        #[arg(short, long, value_enum, default_value_t = AlgorithmChoice::KDTree)]
+        algorithm: AlgorithmChoice,
+
+        #[arg(short, long, default_value_t = 50., help = "Distance cutoff in meters")]
+        cutoff: f64,
+
+        #[arg(
+            short,
+            long,
+            default_value_t = 10,
+            help = "Number of browser windows to open"
+        )]
+        windows: usize,
     },
 
     /// Benchmark all algorithms
@@ -45,6 +68,9 @@ enum Commands {
             help = "Number of addresses to test"
         )]
         sample_size: usize,
+
+        #[arg(short, long, default_value_t = 50., help = "Distance cutoff in meters")]
+        cutoff: f64,
     },
 
     /// Check for data updates from Malmö open data portal
@@ -79,11 +105,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Correlate { algorithm } => {
-            run_correlation(algorithm)?;
+        Commands::Correlate { algorithm, cutoff } => {
+            run_correlation(algorithm, cutoff)?;
         }
-        Commands::Benchmark { sample_size } => {
-            run_benchmark(sample_size)?;
+        Commands::Test {
+            algorithm,
+            cutoff,
+            windows,
+        } => {
+            run_test_mode(algorithm, cutoff, windows)?;
+        }
+        Commands::Benchmark {
+            sample_size,
+            cutoff,
+        } => {
+            run_benchmark(sample_size, cutoff)?;
         }
         Commands::CheckUpdates { checksum_file } => {
             tokio::runtime::Runtime::new()?.block_on(check_updates(&checksum_file))?;
@@ -142,169 +178,15 @@ fn select_algorithms() -> Vec<&'static str> {
     }
 }
 
-fn run_correlation(algorithm: AlgorithmChoice) -> Result<(), Box<dyn std::error::Error>> {
-    // Load data with progress
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Loading data...");
-
-    let (addresses, miljodata, parkering): (
-        Vec<AdressClean>,
-        Vec<MiljoeDataClean>,
-        Vec<MiljoeDataClean>,
-    ) = api()?;
-    pb.finish_with_message(format!(
-        "✓ Loaded {} addresses, {} miljödata zones, {} parkering zones",
-        addresses.len(),
-        miljodata.len(),
-        parkering.len()
-    ));
-
-    // Show which datasets are being used
-    println!("\n📋 Dataset Information:");
-    println!("   Correlating with: Miljödata + Parkering (dual dataset)");
-    println!("   Addresses: {}", addresses.len());
-    println!("   Miljödata zones: {}", miljodata.len());
-    println!("   Parkering zones: {}", parkering.len());
-    println!("   Max distance threshold: 50 meters\n");
-
-    // Setup algorithm
-    let algo_name = format!("{:?}", algorithm);
-    println!("🚀 Running correlation with {} algorithm", algo_name);
-
-    let start = Instant::now();
-
-    // Create progress bar
-    let pb = ProgressBar::new(addresses.len() as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?
-            .progress_chars("█▓▒░ "),
-    );
-
-    // Correlate with miljödata
-    pb.set_message("Correlating with miljödata...");
-    let miljo_results = correlate_dataset(&algorithm, &addresses, &miljodata, &pb)?;
-
-    // Correlate with parkering
-    pb.set_message("Correlating with parkering...");
-    let parkering_results = correlate_dataset(&algorithm, &addresses, &parkering, &pb)?;
-
-    let duration = start.elapsed();
-    pb.finish_with_message(format!("✓ Completed in {:.2?}", duration));
-
-    // Merge results
-    let merged = merge_results(&addresses, &miljo_results, &parkering_results);
-
-    // Calculate statistics
-    let both = merged
-        .iter()
-        .filter(|r| r.miljo_match.is_some() && r.parkering_match.is_some())
-        .count();
-    let miljo_only = merged
-        .iter()
-        .filter(|r| r.miljo_match.is_some() && r.parkering_match.is_none())
-        .count();
-    let parkering_only = merged
-        .iter()
-        .filter(|r| r.miljo_match.is_none() && r.parkering_match.is_some())
-        .count();
-    let no_match = merged.iter().filter(|r| !r.has_match()).count();
-    let total_matches = both + miljo_only + parkering_only;
-
-    println!("\n📊 Results:");
-    println!("   Addresses processed: {}", addresses.len());
-    println!(
-        "   Total matches: {} ({:.1}%)",
-        total_matches,
-        (total_matches as f64 / addresses.len() as f64) * 100.0
-    );
-    println!(
-        "   ├─ Both datasets: {} ({:.1}%)",
-        both,
-        (both as f64 / addresses.len() as f64) * 100.0
-    );
-    println!(
-        "   ├─ Miljödata only: {} ({:.1}%)",
-        miljo_only,
-        (miljo_only as f64 / addresses.len() as f64) * 100.0
-    );
-    println!(
-        "   ├─ Parkering only: {} ({:.1}%)",
-        parkering_only,
-        (parkering_only as f64 / addresses.len() as f64) * 100.0
-    );
-    println!(
-        "   └─ No match: {} ({:.1}%)",
-        no_match,
-        (no_match as f64 / addresses.len() as f64) * 100.0
-    );
-    println!(
-        "   Average time per address: {:.2?}",
-        duration / addresses.len() as u32
-    );
-
-    if total_matches == 0 {
-        println!("\n⚠️  Warning: No matches found! Check data files.");
-    } else {
-        // Show 10 random matches
-        let mut rng = thread_rng();
-        let mut random_results: Vec<_> = merged.iter().filter(|r| r.has_match()).collect();
-        random_results.shuffle(&mut rng);
-
-        println!("\n🎲 10 Random Matches:");
-        for result in random_results.iter().take(10) {
-            println!("   {} ({})", result.address, result.dataset_source());
-            if let Some((dist, _)) = &result.miljo_match {
-                println!("      ├─ Miljödata: {:.2}m", dist);
-            }
-            if let Some((dist, _)) = &result.parkering_match {
-                println!("      └─ Parkering: {:.2}m", dist);
-            }
-        }
-
-        // Show addresses with largest distances
-        let mut sorted_by_distance: Vec<_> = merged.iter().filter(|r| r.has_match()).collect();
-        sorted_by_distance.sort_by(|a, b| {
-            b.closest_distance()
-                .partial_cmp(&a.closest_distance())
-                .unwrap()
-        });
-
-        println!("\n📏 10 Addresses with Largest Distances (all should be ≤50m):");
-        for result in sorted_by_distance.iter().take(10) {
-            if let Some(dist) = result.closest_distance() {
-                println!(
-                    "   {} - {:.2}m ({})",
-                    result.address,
-                    dist,
-                    result.dataset_source()
-                );
-            }
-        }
-
-        // Verify threshold
-        let exceeds_threshold = sorted_by_distance
-            .iter()
-            .any(|r| r.closest_distance().map(|d| d > 50.0).unwrap_or(false));
-
-        if exceeds_threshold {
-            println!("\n⚠️  ERROR: Some matches exceed 50m threshold!");
-        } else {
-            println!("\n✅ Threshold verification: All matches are within 50m");
-        }
-    }
-
-    Ok(())
-}
-type Dat = Result<Vec<(String, f64, String)>, Box<dyn std::error::Error>>;
-/// Correlate addresses with a dataset using the specified algorithm
+type CorDat = Result<Vec<(String, f64, String)>, Box<dyn std::error::Error>>;
+/// Correlate addresses with a dataset using the specified algorithm and distance cutoff
 fn correlate_dataset(
     algorithm: &AlgorithmChoice,
     addresses: &[AdressClean],
     zones: &[MiljoeDataClean],
+    cutoff: f64,
     pb: &ProgressBar,
-) -> Dat {
+) -> CorDat {
     let counter = Arc::new(AtomicUsize::new(0));
 
     let results: Vec<_> = match algorithm {
@@ -314,6 +196,9 @@ fn correlate_dataset(
                 .par_iter()
                 .filter_map(|addr| {
                     let (idx, dist) = algo.correlate(addr, zones)?;
+                    if dist > cutoff {
+                        return None;
+                    }
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
@@ -331,6 +216,9 @@ fn correlate_dataset(
                 .par_iter()
                 .filter_map(|addr| {
                     let (idx, dist) = algo.correlate(addr, zones)?;
+                    if dist > cutoff {
+                        return None;
+                    }
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
@@ -348,6 +236,9 @@ fn correlate_dataset(
                 .par_iter()
                 .filter_map(|addr| {
                     let (idx, dist) = algo.correlate(addr, zones)?;
+                    if dist > cutoff {
+                        return None;
+                    }
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
@@ -365,6 +256,9 @@ fn correlate_dataset(
                 .par_iter()
                 .filter_map(|addr| {
                     let (idx, dist) = algo.correlate(addr, zones)?;
+                    if dist > cutoff {
+                        return None;
+                    }
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
@@ -382,6 +276,9 @@ fn correlate_dataset(
                 .par_iter()
                 .filter_map(|addr| {
                     let (idx, dist) = algo.correlate(addr, zones)?;
+                    if dist > cutoff {
+                        return None;
+                    }
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
@@ -399,6 +296,9 @@ fn correlate_dataset(
                 .par_iter()
                 .filter_map(|addr| {
                     let (idx, dist) = algo.correlate(addr, zones)?;
+                    if dist > cutoff {
+                        return None;
+                    }
                     let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
 
                     let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
@@ -450,17 +350,595 @@ fn merge_results(
         .collect()
 }
 
-fn run_benchmark(sample_size: usize) -> Result<(), Box<dyn std::error::Error>> {
+fn run_correlation(
+    algorithm: AlgorithmChoice,
+    cutoff: f64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Load data with progress
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data...");
+
+    let (addresses, miljodata, parkering): (
+        Vec<AdressClean>,
+        Vec<MiljoeDataClean>,
+        Vec<MiljoeDataClean>,
+    ) = api()?;
+    pb.finish_with_message(format!(
+        "✓ Loaded {} addresses, {} miljödata zones, {} parkering zones",
+        addresses.len(),
+        miljodata.len(),
+        parkering.len()
+    ));
+
+    // Show which datasets are being used
+    println!("\n📋 Dataset Information:");
+    println!("   Correlating with: Miljödata + Parkering (dual dataset)");
+    println!("   Addresses: {}", addresses.len());
+    println!("   Miljödata zones: {}", miljodata.len());
+    println!("   Parkering zones: {}", parkering.len());
+    println!("   Distance threshold: {} meters\n", cutoff);
+
+    // Setup algorithm
+    let algo_name = format!("{:?}", algorithm);
+    println!("🚀 Running correlation with {} algorithm", algo_name);
+
+    let start = Instant::now();
+
+    // Create progress bar
+    let pb = ProgressBar::new(addresses.len() as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?
+            .progress_chars("█▓▒░ "),
+    );
+
+    // Correlate with miljödata
+    pb.set_message("Correlating with miljödata...");
+    let miljo_results = correlate_dataset(&algorithm, &addresses, &miljodata, cutoff, &pb)?;
+
+    // Correlate with parkering
+    pb.set_message("Correlating with parkering...");
+    let parkering_results = correlate_dataset(&algorithm, &addresses, &parkering, cutoff, &pb)?;
+
+    let duration = start.elapsed();
+    pb.finish_with_message(format!("✓ Completed in {:.2?}", duration));
+
+    // Merge results
+    let merged = merge_results(&addresses, &miljo_results, &parkering_results);
+
+    // Calculate statistics
+    let both = merged
+        .iter()
+        .filter(|r: &&CorrelationResult| r.miljo_match.is_some() && r.parkering_match.is_some())
+        .count();
+    let miljo_only = merged
+        .iter()
+        .filter(|r: &&CorrelationResult| r.miljo_match.is_some() && r.parkering_match.is_none())
+        .count();
+    let parkering_only = merged
+        .iter()
+        .filter(|r: &&CorrelationResult| r.miljo_match.is_none() && r.parkering_match.is_some())
+        .count();
+    let no_match = merged
+        .iter()
+        .filter(|r: &&CorrelationResult| !r.has_match())
+        .count();
+    let total_matches = both + miljo_only + parkering_only;
+
+    println!("\n📊 Results:");
+    println!("   Addresses processed: {}", addresses.len());
+    println!(
+        "   Total matches: {} ({:.1}%)",
+        total_matches,
+        (total_matches as f64 / addresses.len() as f64) * 100.0
+    );
+    println!(
+        "   ├─ Both datasets: {} ({:.1}%)",
+        both,
+        (both as f64 / addresses.len() as f64) * 100.0
+    );
+    println!(
+        "   ├─ Miljödata only: {} ({:.1}%)",
+        miljo_only,
+        (miljo_only as f64 / addresses.len() as f64) * 100.0
+    );
+    println!(
+        "   ├─ Parkering only: {} ({:.1}%)",
+        parkering_only,
+        (parkering_only as f64 / addresses.len() as f64) * 100.0
+    );
+    println!(
+        "   └─ No match: {} ({:.1}%)",
+        no_match,
+        (no_match as f64 / addresses.len() as f64) * 100.0
+    );
+    println!(
+        "   Average time per address: {:.2?}",
+        duration / addresses.len() as u32
+    );
+
+    if total_matches == 0 {
+        println!("\n⚠️  Warning: No matches found! Check data files.");
+    } else {
+        // Show 10 random matches
+        let mut rng = thread_rng();
+        let mut random_results: Vec<_> = merged
+            .iter()
+            .filter(|r: &&CorrelationResult| r.has_match())
+            .collect();
+        random_results.shuffle(&mut rng);
+
+        println!("\n🎲 10 Random Matches:");
+        for result in random_results.iter().take(10) {
+            println!("   {} ({})", result.address, result.dataset_source());
+            if let Some((dist, _)) = &result.miljo_match {
+                println!("      ├─ Miljödata: {:.2}m", dist);
+            }
+            if let Some((dist, _)) = &result.parkering_match {
+                println!("      └─ Parkering: {:.2}m", dist);
+            }
+        }
+
+        // Show addresses with largest distances
+        let mut sorted_by_distance: Vec<_> = merged
+            .iter()
+            .filter(|r: &&CorrelationResult| r.has_match())
+            .collect();
+        sorted_by_distance.sort_by(|a: &&CorrelationResult, b: &&CorrelationResult| {
+            b.closest_distance()
+                .partial_cmp(&a.closest_distance())
+                .unwrap()
+        });
+
+        println!(
+            "\n📏 10 Addresses with Largest Distances (all should be ≤{}m):",
+            cutoff as i32
+        );
+        for result in sorted_by_distance.iter().take(10) {
+            if let Some(dist) = result.closest_distance() {
+                println!(
+                    "   {} - {:.2}m ({})",
+                    result.address,
+                    dist,
+                    result.dataset_source()
+                );
+            }
+        }
+
+        // Verify threshold
+        let exceeds_threshold = sorted_by_distance.iter().any(|r: &&CorrelationResult| {
+            r.closest_distance().map(|d| d > cutoff).unwrap_or(false)
+        });
+
+        if exceeds_threshold {
+            println!(
+                "\n⚠️  ERROR: Some matches exceed {}m threshold!",
+                cutoff as i32
+            );
+        } else {
+            println!(
+                "\n✅ Threshold verification: All matches are within {}m",
+                cutoff as i32
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn run_test_mode(
+    algorithm: AlgorithmChoice,
+    cutoff: f64,
+    num_windows: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Load data with progress
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data for testing...");
+
+    let (addresses, miljodata, parkering): (
+        Vec<AdressClean>,
+        Vec<MiljoeDataClean>,
+        Vec<MiljoeDataClean>,
+    ) = api()?;
+    pb.finish_with_message(format!(
+        "✓ Loaded {} addresses, {} miljödata zones, {} parkering zones",
+        addresses.len(),
+        miljodata.len(),
+        parkering.len()
+    ));
+
+    println!("\n📋 Test Mode Configuration:");
+    println!("   Algorithm: {:?}", algorithm);
+    println!("   Distance threshold: {} meters", cutoff);
+    println!("   Browser windows to open: {}", num_windows);
+    println!("   Total addresses available: {}\n", addresses.len());
+
+    // Run correlation
+    let pb = ProgressBar::new(addresses.len() as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?
+            .progress_chars("█▓▒░ "),
+    );
+
+    let miljo_results = correlate_dataset(&algorithm, &addresses, &miljodata, cutoff, &pb)?;
+    let parkering_results = correlate_dataset(&algorithm, &addresses, &parkering, cutoff, &pb)?;
+    pb.finish_with_message("✓ Correlation complete".to_string());
+
+    let merged = merge_results(&addresses, &miljo_results, &parkering_results);
+
+    // Filter to only matching addresses
+    let matching_addresses: Vec<_> = merged
+        .iter()
+        .filter(|r: &&CorrelationResult| r.has_match())
+        .collect();
+
+    if matching_addresses.is_empty() {
+        println!("\n❌ No matching addresses found for testing!");
+        return Ok(());
+    }
+
+    println!("\n📊 Correlation Results:");
+    println!("   Total matches found: {}", matching_addresses.len());
+
+    // Determine how many windows to actually open
+    let actual_windows = num_windows.min(matching_addresses.len());
+    println!(
+        "   Windows to open: {} (sample size from {} matches)",
+        actual_windows,
+        matching_addresses.len()
+    );
+
+    // Random sampling
+    let mut rng = thread_rng();
+    let mut sampled = matching_addresses.clone();
+    sampled.shuffle(&mut rng);
+    let selected: Vec<_> = sampled.iter().take(actual_windows).collect();
+
+    println!("\n🌐 Opening {} browser windows...", actual_windows);
+    println!("   Each window has 2 tabs:");
+    println!("   - Tab 1: StadsAtlas with automated address lookup");
+    println!("   - Tab 2: Raw correlation data\n");
+
+    // Open browser windows with delays to prevent overwhelming the system
+    for (idx, result) in selected.iter().enumerate() {
+        println!(
+            "   [{}/{}] Opening window for: {}",
+            idx + 1,
+            actual_windows,
+            result.address
+        );
+
+        if let Err(e) = open_browser_windows(result, idx) {
+            println!("      ⚠️  Failed to open: {}", e);
+        }
+
+        // Small delay between opening windows
+        if idx < actual_windows - 1 {
+            thread::sleep(Duration::from_millis(500));
+        }
+    }
+
+    println!("\n✅ Test mode complete!");
+    println!(
+        "   Review the {} opened windows to verify correlation accuracy.",
+        actual_windows
+    );
+
+    Ok(())
+}
+
+/// Get the browser executable to use on Linux
+fn get_browser_executable() -> String {
+    // Check BROWSER environment variable first
+    if let Ok(browser) = env::var("BROWSER")
+        && !browser.is_empty()
+    {
+        return browser;
+    }
+
+    // Try to find common browsers
+    let common_browsers = vec![
+        "firefox",
+        "chromium",
+        "chromium-browser",
+        "google-chrome",
+        "chrome",
+    ];
+
+    for browser in common_browsers {
+        if std::process::Command::new("which")
+            .arg(browser)
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+        {
+            return browser.to_string();
+        }
+    }
+
+    // Default fallback
+    "firefox".to_string()
+}
+
+/// Open a new browser window with 2 tabs:
+/// Tab 1: StadsAtlas live URL for address lookup
+/// Tab 2: Correlation result data
+fn open_browser_windows(
+    result: &&CorrelationResult,
+    _window_idx: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let address = &result.address;
+
+    // First tab: Open StadsAtlas live URL with address parameter
+    let stadsatlas_url = format!(
+        "https://stadsatlas.malmo.se/stadsatlas/?address={}",
+        urlencoding::encode(address)
+    );
+
+    // Create correlation result data page
+    let correlation_data = create_correlation_result_page(result);
+    let correlation_data_url = format!(
+        "data:text/html;charset=utf-8,{}",
+        urlencoding::encode(&correlation_data)
+    );
+
+    // Try to open windows using different methods depending on OS
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: Open new browser window with both URLs
+        std::process::Command::new("cmd")
+            .args(&[
+                "/C",
+                &format!(
+                    "start chrome \"{}\" && timeout /t 2 && start chrome \"{}\"",
+                    stadsatlas_url, correlation_data_url
+                ),
+            ])
+            .output()
+            .ok();
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // macOS: Open new Safari window with StadsAtlas, then correlation data in new tab
+        let script = format!(
+            r#"open '{}' & sleep 1 && open '{}' "#,
+            stadsatlas_url, correlation_data_url
+        );
+        std::process::Command::new("bash")
+            .args(&["-c", &script])
+            .output()
+            .ok();
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Linux: Open browser directly with StadsAtlas URL first, then correlation data
+        let browser = get_browser_executable();
+
+        // Open first tab with StadsAtlas
+        std::process::Command::new(&browser)
+            .arg(&stadsatlas_url)
+            .spawn()
+            .ok();
+
+        // Small delay before opening second tab
+        thread::sleep(Duration::from_millis(1000));
+
+        // Open second tab with correlation data
+        std::process::Command::new(&browser)
+            .arg(&correlation_data_url)
+            .spawn()
+            .ok();
+    }
+
+    Ok(())
+}
+
+/// Create an HTML page that will automatically interact with StadsAtlas
+#[deprecated]
+#[allow(dead_code)]
+fn create_stadsatlas_automation_page(address: &str) -> String {
+    format!(
+        r#"<!DOCTYPE html>
+<html>
+<head>
+    <title>StadsAtlas - Auto Lookup: {}</title>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }}
+        .container {{ background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: 0 auto; }}
+        h1 {{ color: #333; margin-bottom: 20px; }}
+        .instruction {{ background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #4caf50; }}
+        .note {{ color: #666; font-size: 14px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; }}
+        .address-display {{ background: #fff3e0; padding: 15px; border-radius: 4px; margin: 15px 0; font-weight: bold; }}
+        .steps {{ counter-reset: step-counter; margin: 20px 0; }}
+        .step {{ counter-increment: step-counter; margin: 15px 0; padding: 10px; background: #f5f5f5; border-radius: 4px; }}
+        .step::before {{ content: counter(step-counter); display: inline-block; background: #2196F3; color: white; width: 24px; height: 24px; border-radius: 50%; text-align: center; line-height: 24px; margin-right: 10px; font-weight: bold; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗺️ StadsAtlas Auto-Lookup</h1>
+        <div class="address-display">{}</div>
+        
+        <div class="instruction">
+            📌 This page will help you verify the correlation data in StadsAtlas.
+        </div>
+
+        <div class="steps">
+            <div class="step">
+                Click the <strong>layers icon</strong> (first icon in top toolbar)
+            </div>
+            <div class="step">
+                Click the <strong>chevron right</strong> button (arrow pointing right)
+            </div>
+            <div class="step">
+                Click the <strong>chevron right</strong> button again
+            </div>
+            <div class="step">
+                Click the <strong>chevron right</strong> button once more
+            </div>
+            <div class="step">
+                Click the <strong>radio button</strong> (circle) to enable <strong>Miljöparkering</strong>
+            </div>
+            <div class="step">
+                Click in the <strong>"Sök adresser eller platser..."</strong> search field at the top
+            </div>
+            <div class="step">
+                Enter this address: <strong>{}</strong>
+            </div>
+        </div>
+
+        <div class="note">
+            💡 <strong>Tip:</strong> Use the second tab to see the correlation result data while you verify it in StadsAtlas.
+        </div>
+    </div>
+</body>
+</html>"#,
+        address, address, address
+    )
+}
+
+/// Create the correlation result data display page
+fn create_correlation_result_page(result: &CorrelationResult) -> String {
+    let matches_html = format_matches_html(result);
+
+    format!(
+        r#"<!DOCTYPE html>
+<html>
+<head>
+    <title>Correlation Result - {}</title>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }}
+        .container {{ background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: 0 auto; }}
+        h1 {{ color: #333; margin-bottom: 20px; }}
+        .field {{ margin: 20px 0; }}
+        .label {{ font-weight: bold; color: #666; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }}
+        .value {{ color: #333; padding: 10px; background: #f9f9f9; border-radius: 4px; border-left: 3px solid #2196F3; }}
+        .match {{ background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #4caf50; }}
+        .match strong {{ color: #2e7d32; }}
+        .no-match {{ background: #ffebee; padding: 15px; border-radius: 4px; border-left: 4px solid #c62828; }}
+        .match-item {{ margin-bottom: 10px; }}
+        .distance {{ color: #e67e22; font-weight: bold; }}
+        .info {{ color: #7f8c8d; font-size: 12px; margin-top: 5px; }}
+        h2 {{ color: #555; font-size: 16px; margin-top: 30px; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Correlation Result Data</h1>
+        
+        <div class="field">
+            <div class="label">Address</div>
+            <div class="value">{}</div>
+        </div>
+        
+        <div class="field">
+            <div class="label">Postal Code</div>
+            <div class="value">{}</div>
+        </div>
+        
+        <div class="field">
+            <div class="label">Dataset Source</div>
+            <div class="value">{}</div>
+        </div>
+        
+        <h2>Matched Zones</h2>
+        {}
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #999; font-size: 12px;">
+            Compare this data with what you see in StadsAtlas to verify correlation accuracy.
+        </div>
+    </div>
+</body>
+</html>"#,
+        result.address,
+        result.address,
+        result.postnummer,
+        result.dataset_source(),
+        matches_html
+    )
+}
+
+fn format_matches_html(result: &CorrelationResult) -> String {
+    match (&result.miljo_match, &result.parkering_match) {
+        (Some((dist_m, info_m)), Some((dist_p, info_p))) => {
+            format!(
+                r#"<div class="match">
+    <div class="match-item">
+        <strong>🌍 Miljödata</strong><br>
+        <span class="distance">{:.2}m away</span><br>
+        <div class="info">{}</div>
+    </div>
+</div>
+<div class="match">
+    <div class="match-item">
+        <strong>🚗 Parkering</strong><br>
+        <span class="distance">{:.2}m away</span><br>
+        <div class="info">{}</div>
+    </div>
+</div>"#,
+                dist_m, info_m, dist_p, info_p
+            )
+        }
+        (Some((dist, info)), None) => {
+            format!(
+                r#"<div class="match">
+    <div class="match-item">
+        <strong>🌍 Miljödata</strong><br>
+        <span class="distance">{:.2}m away</span><br>
+        <div class="info">{}</div>
+    </div>
+</div>"#,
+                dist, info
+            )
+        }
+        (None, Some((dist, info))) => {
+            format!(
+                r#"<div class="match">
+    <div class="match-item">
+        <strong>🚗 Parkering</strong><br>
+        <span class="distance">{:.2}m away</span><br>
+        <div class="info">{}</div>
+    </div>
+</div>"#,
+                dist, info
+            )
+        }
+        (None, None) => "<div class='no-match'>❌ No matches found</div>".to_string(),
+    }
+}
+
+fn run_benchmark(sample_size: usize, cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
     // Load data
     let pb = ProgressBar::new_spinner();
     pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
     pb.set_message("Loading data for benchmarking...");
 
     let (addresses, zones) = amp_core::api::api_miljo_only()?;
+
+    // Validate sample size
+    let actual_sample_size = sample_size.min(addresses.len());
+    let requested_msg = if sample_size > addresses.len() {
+        format!(
+            " (requested {} but only {} available)",
+            sample_size,
+            addresses.len()
+        )
+    } else {
+        String::new()
+    };
+
     pb.finish_with_message(format!(
-        "✓ Loaded {} addresses, {} zones",
+        "✓ Loaded {} addresses, {} zones{}",
         addresses.len(),
-        zones.len()
+        zones.len(),
+        requested_msg
     ));
 
     // Let user select which algorithms to benchmark
@@ -469,9 +947,10 @@ fn run_benchmark(sample_size: usize) -> Result<(), Box<dyn std::error::Error>> {
     let benchmarker = Benchmarker::new(addresses, zones);
 
     println!(
-        "🏁 Benchmarking {} selected algorithm(s) with {} samples\n",
+        "🏁 Benchmarking {} selected algorithm(s) with {} samples (distance cutoff: {}m)\n",
         selected_algos.len(),
-        sample_size
+        actual_sample_size,
+        cutoff as i32
     );
 
     // Create multi-progress for selected algorithms
@@ -481,7 +960,7 @@ fn run_benchmark(sample_size: usize) -> Result<(), Box<dyn std::error::Error>> {
     let pbs: Vec<_> = selected_algos
         .iter()
         .map(|name| {
-            let pb = multi_pb.add(ProgressBar::new(sample_size as u64));
+            let pb = multi_pb.add(ProgressBar::new(actual_sample_size as u64));
             pb.set_style(
                 ProgressStyle::default_bar()
                     .template(&format!(
@@ -497,51 +976,62 @@ fn run_benchmark(sample_size: usize) -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     // Run benchmarks with progress updates
-    let results =
-        benchmark_selected_with_progress(&benchmarker, sample_size, &selected_algos, &pbs);
+    let results = benchmark_selected_with_progress(
+        &benchmarker,
+        actual_sample_size,
+        &selected_algos,
+        &pbs,
+        cutoff,
+    );
 
     // Finish all progress bars
     for pb in pbs {
         pb.finish_and_clear();
     }
 
-    println!("\n📊 Benchmark Results:\n");
+    println!(
+        "\n📊 Benchmark Results (distance cutoff: {}m):\n",
+        cutoff as i32
+    );
     Benchmarker::print_results(&results);
 
     Ok(())
 }
 
-type Alg<'a> = Vec<(
-    &'a str,
-    fn(&Benchmarker, &[AdressClean], &ProgressBar, &AtomicUsize, &Arc<AtomicUsize>) -> (),
-)>;
+type AlgorithmBenchmarkFn =
+    fn(&Benchmarker, &[AdressClean], &ProgressBar, &AtomicUsize, &Arc<AtomicUsize>, f64) -> ();
+
 fn benchmark_selected_with_progress(
     benchmarker: &Benchmarker,
     sample_size: usize,
     selected_algos: &[&str],
     pbs: &[ProgressBar],
+    cutoff: f64,
 ) -> Vec<amp_core::benchmark::BenchmarkResult> {
     use amp_core::benchmark::BenchmarkResult;
 
-    let sample_size = sample_size.min(benchmarker.addresses.len());
     let addresses_to_test = &benchmarker.addresses[..sample_size];
 
     let mut results = Vec::new();
 
-    let all_algos: Alg = vec![
-        ("Distance-Based", |bm, addrs, pb, matches, counter| {
-            let algo = DistanceBasedAlgo;
-            run_single_benchmark(
-                &algo,
-                addrs,
-                &bm.parking_lines,
-                pb,
-                matches,
-                counter,
-                "Distance-Based",
-            );
-        }),
-        ("Raycasting", |bm, addrs, pb, matches, counter| {
+    let all_algos: Vec<(&str, AlgorithmBenchmarkFn)> = vec![
+        (
+            "Distance-Based",
+            |bm, addrs, pb, matches, counter, cutoff| {
+                let algo = DistanceBasedAlgo;
+                run_single_benchmark(
+                    &algo,
+                    addrs,
+                    &bm.parking_lines,
+                    pb,
+                    matches,
+                    counter,
+                    "Distance-Based",
+                    cutoff,
+                );
+            },
+        ),
+        ("Raycasting", |bm, addrs, pb, matches, counter, cutoff| {
             let algo = RaycastingAlgo;
             run_single_benchmark(
                 &algo,
@@ -551,21 +1041,26 @@ fn benchmark_selected_with_progress(
                 matches,
                 counter,
                 "Raycasting",
+                cutoff,
             );
         }),
-        ("Overlapping Chunks", |bm, addrs, pb, matches, counter| {
-            let algo = OverlappingChunksAlgo::new(&bm.parking_lines);
-            run_single_benchmark(
-                &algo,
-                addrs,
-                &bm.parking_lines,
-                pb,
-                matches,
-                counter,
-                "Overlapping Chunks",
-            );
-        }),
-        ("R-Tree", |bm, addrs, pb, matches, counter| {
+        (
+            "Overlapping Chunks",
+            |bm, addrs, pb, matches, counter, cutoff| {
+                let algo = OverlappingChunksAlgo::new(&bm.parking_lines);
+                run_single_benchmark(
+                    &algo,
+                    addrs,
+                    &bm.parking_lines,
+                    pb,
+                    matches,
+                    counter,
+                    "Overlapping Chunks",
+                    cutoff,
+                );
+            },
+        ),
+        ("R-Tree", |bm, addrs, pb, matches, counter, cutoff| {
             let algo = RTreeSpatialAlgo::new(&bm.parking_lines);
             run_single_benchmark(
                 &algo,
@@ -575,9 +1070,10 @@ fn benchmark_selected_with_progress(
                 matches,
                 counter,
                 "R-Tree",
+                cutoff,
             );
         }),
-        ("KD-Tree", |bm, addrs, pb, matches, counter| {
+        ("KD-Tree", |bm, addrs, pb, matches, counter, cutoff| {
             let algo = KDTreeSpatialAlgo::new(&bm.parking_lines);
             run_single_benchmark(
                 &algo,
@@ -587,9 +1083,10 @@ fn benchmark_selected_with_progress(
                 matches,
                 counter,
                 "KD-Tree",
+                cutoff,
             );
         }),
-        ("Grid", |bm, addrs, pb, matches, counter| {
+        ("Grid", |bm, addrs, pb, matches, counter, cutoff| {
             let algo = GridNearestAlgo::new(&bm.parking_lines);
             run_single_benchmark(
                 &algo,
@@ -599,6 +1096,7 @@ fn benchmark_selected_with_progress(
                 matches,
                 counter,
                 "Grid",
+                cutoff,
             );
         }),
     ];
@@ -622,6 +1120,7 @@ fn benchmark_selected_with_progress(
             &pbs[pb_idx],
             &matches,
             &counter,
+            cutoff,
         );
 
         let total_duration = start.elapsed();
@@ -643,6 +1142,7 @@ fn benchmark_selected_with_progress(
     results
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_single_benchmark<A: CorrelationAlgo + Sync>(
     algo: &A,
     addresses: &[AdressClean],
@@ -651,9 +1151,12 @@ fn run_single_benchmark<A: CorrelationAlgo + Sync>(
     matches: &AtomicUsize,
     counter: &Arc<AtomicUsize>,
     _name: &str,
+    cutoff: f64,
 ) {
     addresses.par_iter().for_each(|address| {
-        if algo.correlate(address, parking_lines).is_some() {
+        if let Some((_, dist)) = algo.correlate(address, parking_lines)
+            && dist <= cutoff
+        {
             matches.fetch_add(1, Ordering::Relaxed);
         }
 

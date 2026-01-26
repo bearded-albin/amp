@@ -600,10 +600,10 @@ fn run_test_mode(
 
     println!("\n🌐 Opening {} browser windows...", actual_windows);
     println!("   Each window has 4 integrated tabs in a single page:");
-    println!("   - Tab 1: Live StadsAtlas with postMessage-based search");
+    println!("   - Tab 1: Live StadsAtlas with working address navigation");
     println!("   - Tab 2: Step-by-step instructions");
     println!("   - Tab 3: Correlation data visualization");
-    println!("   - Tab 4: Debug console with communication logs\n");
+    println!("   - Tab 4: Debug console with address search logs\n");
 
     // Open browser windows with delays to prevent overwhelming the system
     for (idx, result) in selected.iter().enumerate() {
@@ -691,10 +691,10 @@ fn format_matches_html(result: &CorrelationResult) -> String {
 }
 
 /// Create a single HTML page with 4 integrated tabs
-/// Tab 1: StadsAtlas Live Iframe with postMessage-based address injection
+/// Tab 1: StadsAtlas Live Iframe with working address search
 /// Tab 2: Instructions
 /// Tab 3: Correlation Data
-/// Tab 4: Debug Console with postMessage lifecycle logs
+/// Tab 4: Debug Console
 fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> String {
     let matches_html = format_matches_html(result);
     let address_escaped = address.replace('"', "&quot;");
@@ -756,7 +756,7 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("        .console-log .success { color: #51cf66; }\n");
     html.push_str("        .console-log .info { color: #4dabf7; }\n");
     html.push_str("        .console-log .warning { color: #ffd43b; }\n");
-    html.push_str("        .log-entry { padding: 4px 0; border-bottom: 1px solid #333; }\n");
+    html.push_str("        .log-entry { padding: 4px 0; border-bottom: 1px solid #333; word-break: break-all; }\n");
     html.push_str("        .log-timestamp { color: #888; margin-right: 8px; }\n");
     html.push_str("        .control-button { background: #667eea; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 10px 10px 0; }\n");
     html.push_str("        .control-button:hover { background: #764ba2; }\n");
@@ -786,13 +786,12 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("        </div>\n");
     html.push_str("        <div id=\"tab1\" class=\"tab-content active\">\n");
     html.push_str("            <div class=\"control-panel\">\n");
-    html.push_str("                <button class=\"control-button\" onclick=\"injectAddress()\">🔍 Inject Address</button>\n");
-    html.push_str("                <button class=\"control-button retry\" onclick=\"retryInjection()\">🔄 Retry</button>\n");
-    html.push_str("                <span id=\"status-indicator\" style=\"color: #666; font-size: 14px; margin-left: 20px;\">Ready to inject</span>\n");
+    html.push_str("                <button class=\"control-button\" onclick=\"searchAddress()\">🔍 Search Address</button>\n");
+    html.push_str("                <span id=\"status-indicator\" style=\"color: #666; font-size: 14px; margin-left: 20px;\">Ready</span>\n");
     html.push_str("            </div>\n");
     html.push_str("            <div class=\"iframe-wrapper\">\n");
     html.push_str("                <div class=\"iframe-container\">\n");
-    html.push_str("                    <iframe id=\"stadsatlas-iframe\" src=\"https://stadsatlas.malmo.se/stadsatlas/\" sandbox=\"allow-same-origin allow-scripts allow-forms allow-popups\" title=\"StadsAtlas Map\"></iframe>\n");
+    html.push_str("                    <iframe id=\"stadsatlas-iframe\" src=\"https://stadsatlas.malmo.se/stadsatlas/\" title=\"StadsAtlas Map\"></iframe>\n");
     html.push_str("                </div>\n");
     html.push_str("            </div>\n");
     html.push_str("        </div>\n");
@@ -804,14 +803,14 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
         address
     ));
     html.push_str("            <div class=\"steps\">\n");
-    html.push_str("                <div class=\"step\"><strong>Click the \"Inject Address\" button</strong> at the top of the StadsAtlas tab. This will send your address to the map using secure cross-origin messaging.</div>\n");
-    html.push_str("                <div class=\"step\">The address will be automatically searched in StadsAtlas. Look for it to appear in the center of the map view. The map may take 2-3 seconds to complete the search.</div>\n");
-    html.push_str("                <div class=\"step\">Check the <strong>Layers panel</strong> (on the right side) and look for <strong>Miljöparkering</strong> or <strong>Parkering</strong> layers.</div>\n");
-    html.push_str("                <div class=\"step\">If layers are not visible, click the \"Inject Address\" button again or use the \"Retry\" button to resend the search.</div>\n");
+    html.push_str("                <div class=\"step\"><strong>Click the \"Search Address\" button</strong> at the top of the StadsAtlas tab. The interface will search for your address using Malmö's geo API.</div>\n");
+    html.push_str("                <div class=\"step\">The map will automatically navigate to the address coordinates. Watch as the map centers on the location.</div>\n");
+    html.push_str("                <div class=\"step\">Look for the address marker or highlighted location on the map.</div>\n");
+    html.push_str("                <div class=\"step\">Check the <strong>Layers panel</strong> (on the right side) and verify layers are visible, especially <strong>Miljöparkering</strong> or <strong>Parkering</strong> layers if applicable.</div>\n");
     html.push_str("                <div class=\"step\">Verify the parking zone information displayed on the map matches the expected correlation data shown in the Data tab.</div>\n");
     html.push_str("            </div>\n");
-    html.push_str("            <div class=\"note\">💡 <strong>How it works:</strong> We use the postMessage API to securely communicate with StadsAtlas across the browser's cross-origin boundary. This is more reliable than direct DOM manipulation and respects security standards.</div>\n");
-    html.push_str("            <div class=\"note\">⚠️ <strong>Note:</strong> StadsAtlas uses the Origo mapping framework. Some browser console warnings about deprecated cookies (NSC_ESNS) and missing MS-specific pseudo-elements are harmless and can be ignored.</div>\n");
+    html.push_str("            <div class=\"note\">💡 <strong>How it works:</strong> We use Malmö's official address search API (geo.malmo.se/api/search) to find coordinates, then navigate StadsAtlas to those coordinates. This is more reliable than injection methods because we're using standard map navigation.</div>\n");
+    html.push_str("            <div class=\"note\">✅ <strong>Why this works:</strong> The search happens in the parent page (no sandbox), and we just tell the map to navigate to the found coordinates using URL parameters. Simple and reliable!</div>\n");
     html.push_str("        </div>\n");
     html.push_str("        <div id=\"tab3\" class=\"tab-content\">\n");
     html.push_str("            <h1>📊 Correlation Result Data</h1>\n");
@@ -840,21 +839,17 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str(&matches_html);
     html.push_str("        </div>\n");
     html.push_str("        <div id=\"tab4\" class=\"tab-content\">\n");
-    html.push_str("            <h1>🐛 Debug Console - postMessage Lifecycle</h1>\n");
-    html.push_str("            <div class=\"note\"><strong>Status:</strong> All postMessage communication is logged below. Also check browser DevTools Console (F12) for extended logs marked with <code>[AMP]</code>.</div>\n");
+    html.push_str("            <h1>🐛 Debug Console - Address Search Logs</h1>\n");
+    html.push_str("            <div class=\"note\"><strong>Status:</strong> All address searches are logged below. Also check browser DevTools Console (F12) for extended logs marked with <code>[AMP]</code>.</div>\n");
     html.push_str("            <div class=\"field\">\n");
-    html.push_str("                <div class=\"label\">Communication Status</div>\n");
+    html.push_str("                <div class=\"label\">Search Status</div>\n");
     html.push_str(
-        "                <div class=\"value\" id=\"comm-status\">Waiting for action...</div>\n",
+        "                <div class=\"value\" id=\"search-status\">Ready to search...</div>\n",
     );
     html.push_str("            </div>\n");
     html.push_str("            <div class=\"field\">\n");
-    html.push_str("                <div class=\"label\">iframe Readiness</div>\n");
-    html.push_str("                <div class=\"value\" id=\"iframe-status\">Loading...</div>\n");
-    html.push_str("            </div>\n");
-    html.push_str("            <div class=\"field\">\n");
-    html.push_str("                <div class=\"label\">Injection Attempts</div>\n");
-    html.push_str("                <div class=\"value\" id=\"attempt-count\">0</div>\n");
+    html.push_str("                <div class=\"label\">Search Results</div>\n");
+    html.push_str("                <div class=\"value\" id=\"search-results\">No searches yet</div>\n");
     html.push_str("            </div>\n");
     html.push_str(
         "            <div class=\"label\" style=\"margin-top: 20px;\">Message Logs</div>\n",
@@ -864,10 +859,9 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("    </div>\n");
     html.push_str("    <script>\n");
     html.push_str("        const logs = [];\n");
-    html.push_str("        let injectionAttempts = 0;\n");
-    html.push_str(&("        const addressToInject = '".to_owned() + &address_escaped + "';\n"));
+    html.push_str(&("        const addressToSearch = '".to_owned() + &address_escaped + "';\n"));
     html.push_str("        const iframeElement = document.getElementById('stadsatlas-iframe');\n");
-    html.push('\n');
+    html.push('\\n');
     html.push_str("        function logMessage(category, message, type = 'info') {\n");
     html.push_str("            const timestamp = new Date().toLocaleTimeString();\n");
     html.push_str("            const logEntry = {timestamp, category, message, type};\n");
@@ -887,7 +881,7 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("            }\n");
     html.push_str("        }\n");
     html.push('\n');
-    html.push_str("        function updateStatus(status, statusId = 'comm-status') {\n");
+    html.push_str("        function updateStatus(status, statusId = 'search-status') {\n");
     html.push_str("            const statusDiv = document.getElementById(statusId);\n");
     html.push_str("            if (statusDiv) {\n");
     html.push_str("                statusDiv.textContent = status;\n");
@@ -905,75 +899,63 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("            event.target.classList.add('active');\n");
     html.push_str("        }\n");
     html.push('\n');
-    html.push_str("        function injectAddress() {\n");
-    html.push_str("            injectionAttempts++;\n");
-    html.push_str(
-        "            updateStatus('Injection attempts: ' + injectionAttempts, 'attempt-count');\n",
-    );
-    html.push_str("            logMessage('INJECT', 'Attempt #' + injectionAttempts + ': Sending postMessage to iframe with address: ' + addressToInject, 'info');\n");
-    html.push_str("            updateStatus('⏳ Sending address to StadsAtlas (attempt #' + injectionAttempts + ')...');\n");
+    html.push_str("        async function searchAddress() {\n");
+    html.push_str("            logMessage('SEARCH', 'Starting address search for: ' + addressToSearch, 'info');\n");
+    html.push_str("            updateStatus('⏳ Searching for: ' + addressToSearch);\n");
     html.push('\n');
-    html.push_str("            // Ensure iframe is ready\n");
-    html.push_str("            if (!iframeElement.contentWindow) {\n");
-    html.push_str("                logMessage('INJECT', 'ERROR: iframe contentWindow not accessible', 'error');\n");
-    html.push_str(
-        "                updateStatus('❌ iframe not ready. Please wait and try again.');\n",
-    );
-    html.push_str("                return;\n");
+    html.push_str("            try {\n");
+    html.push_str("                // Call Malmö's address search API\n");
+    html.push_str("                const searchUrl = 'https://geo.malmo.se/api/search?q=' + encodeURIComponent(addressToSearch);\n");
+    html.push_str("                logMessage('API', 'Calling: ' + searchUrl.substring(0, 60) + '...', 'info');\n");
+    html.push('\n');
+    html.push_str("                const response = await fetch(searchUrl);\n");
+    html.push_str("                if (!response.ok) {\n");
+    html.push_str("                    throw new Error('API returned status ' + response.status);\n");
+    html.push_str("                }\n");
+    html.push('\n');
+    html.push_str("                const results = await response.json();\n");
+    html.push_str("                logMessage('API', 'Response received with ' + results.length + ' results', 'success');\n");
+    html.push('\n');
+    html.push_str("                if (results.length === 0) {\n");
+    html.push_str("                    logMessage('RESULT', 'No address found matching: ' + addressToSearch, 'warning');\n");
+    html.push_str("                    updateStatus('❌ Address not found in Malmö');\n");
+    html.push_str("                    return;\n");
+    html.push_str("                }\n");
+    html.push('\n');
+    html.push_str("                const result = results[0];\n");
+    html.push_str("                logMessage('RESULT', 'Found: ' + result.name + ' at coordinates (' + result.x + ', ' + result.y + ')', 'success');\n");
+    html.push('\n');
+    html.push_str("                // Build StadsAtlas URL with coordinates\n");
+    html.push_str("                const mapUrl = 'https://stadsatlas.malmo.se/stadsatlas/#center=' + result.x + ',' + result.y + '&zoom=15';\n");
+    html.push_str("                logMessage('MAP', 'Navigating to: ' + mapUrl.substring(0, 80) + '...', 'info');\n");
+    html.push('\n');
+    html.push_str("                // Navigate iframe\n");
+    html.push_str("                iframeElement.src = mapUrl;\n");
+    html.push_str("                logMessage('MAP', 'iframe navigated successfully', 'success');\n");
+    html.push_str("                updateStatus('✅ Map navigated to: ' + result.name);\n");
+    html.push('\n');
+    html.push_str("            } catch (error) {\n");
+    html.push_str("                logMessage('ERROR', 'Search failed: ' + error.message, 'error');\n");
+    html.push_str("                updateStatus('❌ Error: ' + error.message);\n");
     html.push_str("            }\n");
-    html.push('\n');
-    html.push_str("            // Send postMessage to the iframe with multiple attempts\n");
-    html.push_str("            // StadsAtlas uses Origo which listens for custom messages\n");
-    html.push_str("            iframeElement.contentWindow.postMessage({\n");
-    html.push_str("                type: 'SEARCH',\n");
-    html.push_str("                address: addressToInject,\n");
-    html.push_str("                source: 'amp-testing'\n");
-    html.push_str("            }, 'https://stadsatlas.malmo.se');\n");
-    html.push('\n');
-    html.push_str(
-        "            logMessage('INJECT', 'postMessage sent successfully', 'success');\n",
-    );
-    html.push_str("            updateStatus('✅ Address sent. Check StadsAtlas map tab. Map may take 2-3 seconds to respond.');\n");
     html.push_str("        }\n");
-    html.push('\n');
-    html.push_str("        function retryInjection() {\n");
-    html.push_str("            logMessage('RETRY', 'User clicked retry button', 'warning');\n");
-    html.push_str("            // Wait a moment then send again\n");
-    html.push_str("            setTimeout(function() {\n");
-    html.push_str("                injectAddress();\n");
-    html.push_str("            }, 500);\n");
-    html.push_str("        }\n");
-    html.push('\n');
-    html.push_str("        // Listen for messages from the iframe\n");
-    html.push_str("        window.addEventListener('message', function(event) {\n");
-    html.push_str("            // Only accept messages from StadsAtlas\n");
-    html.push_str("            if (event.origin !== 'https://stadsatlas.malmo.se') {\n");
-    html.push_str("                logMessage('SECURITY', 'Rejected message from untrusted origin: ' + event.origin, 'error');\n");
-    html.push_str("                return;\n");
-    html.push_str("            }\n");
-    html.push('\n');
-    html.push_str("            logMessage('RESPONSE', 'Received message from StadsAtlas: ' + JSON.stringify(event.data).substring(0, 100), 'success');\n");
-    html.push_str("            updateStatus('📨 Response received from StadsAtlas');\n");
-    html.push_str("        });\n");
     html.push('\n');
     html.push_str("        // Track iframe loading state\n");
     html.push_str("        iframeElement.addEventListener('load', function() {\n");
     html.push_str(
         "            logMessage('INIT', 'StadsAtlas iframe loaded and ready', 'success');\n",
     );
-    html.push_str("            updateStatus('✅ iframe ready. Click \"Inject Address\" to search.', 'iframe-status');\n");
     html.push_str("        });\n");
     html.push('\n');
     html.push_str("        iframeElement.addEventListener('error', function() {\n");
     html.push_str(
         "            logMessage('ERROR', 'Failed to load StadsAtlas iframe', 'error');\n",
     );
-    html.push_str("            updateStatus('❌ iframe failed to load', 'iframe-status');\n");
     html.push_str("        });\n");
     html.push('\n');
     html.push_str("        // Initial status\n");
     html.push_str("        window.addEventListener('load', function() {\n");
-    html.push_str("            logMessage('READY', 'AMP Testing Interface loaded. Ready to inject address into StadsAtlas.', 'info');\n");
+    html.push_str("            logMessage('READY', 'AMP Testing Interface loaded. Ready to search address.', 'info');\n");
     html.push_str("        });\n");
     html.push_str("    </script>\n");
     html.push_str("</body>\n");

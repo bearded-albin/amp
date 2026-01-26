@@ -93,28 +93,25 @@ impl DataLoader {
         // Look for pattern like "8–22" or "8–20" (with en-dash U+2013)
         // Split on en-dash and extract the time range
         let parts: Vec<&str> = taxa_str.split('–').collect();
-        
+
         if parts.len() >= 2 {
             // Find digits before and after the dash
             if let Some(before_dash) = parts.first() {
                 // Get the last number from before the dash (the start time)
-                let start_time = before_dash
-                    .split_whitespace()
-                    .last()
-                    .and_then(|s| {
-                        s.chars()
-                            .rev()
-                            .take_while(|c| c.is_ascii_digit())
-                            .collect::<String>()
-                            .chars()
-                            .rev()
-                            .collect::<String>()
-                            .parse::<u32>()
-                            .ok()
-                    });
-                
-                if let Some(start) = start_time {
-                    if let Some(after_dash) = parts.get(1) {
+                let start_time = before_dash.split_whitespace().last().and_then(|s| {
+                    s.chars()
+                        .rev()
+                        .take_while(|c| c.is_ascii_digit())
+                        .collect::<String>()
+                        .chars()
+                        .rev()
+                        .collect::<String>()
+                        .parse::<u32>()
+                        .ok()
+                });
+
+                if let Some(start) = start_time
+                    && let Some(after_dash) = parts.get(1) {
                         // Get the first number after the dash (the end time)
                         let end_time = after_dash
                             .chars()
@@ -122,15 +119,14 @@ impl DataLoader {
                             .collect::<String>()
                             .parse::<u32>()
                             .ok();
-                        
+
                         if let Some(end) = end_time {
                             return format!("{:02}:00–{:02}:00", start, end);
                         }
                     }
-                }
             }
         }
-        
+
         "00:00–23:59".to_string()
     }
 
@@ -280,8 +276,8 @@ pub fn api() -> Result<ApiResult, Box<dyn std::error::Error>> {
     Ok((addresses, miljodata, parkering))
 }
 
-pub fn api_miljo_only(
-) -> Result<(Vec<AdressClean>, Vec<MiljoeDataClean>), Box<dyn std::error::Error>> {
+pub fn api_miljo_only()
+-> Result<(Vec<AdressClean>, Vec<MiljoeDataClean>), Box<dyn std::error::Error>> {
     let addresses = DataLoader::load_addresses("data/adresser.json")?;
     let miljodata = DataLoader::load_parking("data/miljoparkeringar.json", "Miljödata")?;
     Ok((addresses, miljodata))

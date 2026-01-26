@@ -98,22 +98,13 @@
             padding: 0 !important;
             overflow: hidden !important;
         }
-        .map-placeholder {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            height: 100% !important;
-            width: 100% !important;
-            background: #f5f5f5 !important;
-            color: #999 !important;
-            font-size: 16px !important;
-        }
         .stadsatlas-iframe {
             width: 100% !important;
             height: 100% !important;
             border: none !important;
             margin: 0 !important;
             padding: 0 !important;
+            display: block !important;
         }
         .tab-container {
             flex: 1 !important;
@@ -201,7 +192,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>📍 AMP Correlation Testing Interface</h1>
+        <h1>📝 AMP Correlation Testing Interface</h1>
         <div class="address">Address: <strong>{ADDRESS}</strong></div>
     </div>
     
@@ -212,9 +203,9 @@
             <button class="control-button" onclick="searchAddress()">🔍 Load Map</button>
             <span id="status-indicator" class="status-text">Ready</span>
         </div>
+        <!-- IMPORTANT: iframe ONLY, no placeholder div -->
         <div id="map-container" class="map-container">
-            <div class="map-placeholder">Map will load here</div>
-            <iframe id="stadsatlas-iframe" class="stadsatlas-iframe" src="" frameborder="0" style="display:none;"></iframe>
+            <iframe id="stadsatlas-iframe" class="stadsatlas-iframe" src="" frameborder="0"></iframe>
         </div>
     </div>
     
@@ -249,14 +240,14 @@
                 <div class="value">{RESULT_ADDRESS}</div>
             </div>
             <div class="field">
-                <div class="label">📮 Postal Code</div>
+                <div class="label">🏤 Postal Code</div>
                 <div class="value">{RESULT_POSTNUMMER}</div>
             </div>
             <div class="field">
                 <div class="label">📂 Dataset Source</div>
                 <div class="value">{RESULT_SOURCE}</div>
             </div>
-            <h2>🎯 Matched Zones</h2>
+            <h2>🏘️ Matched Zones</h2>
             <div id="matches-container">{RESULT_MATCHES}</div>
         </div>
         

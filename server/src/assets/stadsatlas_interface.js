@@ -4,6 +4,7 @@
 // ===================================================================
 
 const BASE_URL = 'https://geo.malmo.se/api/search';
+let shouldAutoLoad = true; // Flag to auto-load on page load
 
 function logToConsole(prefix, message) {
     const timestamp = new Date().toLocaleTimeString();
@@ -33,9 +34,8 @@ function handleApiError(error) {
 }
 
 function searchAddress() {
-    const searchBox = document.querySelector('input[placeholder*="Sök address"]') || 
-                      document.querySelector('input[type="text"]');
-    const address = searchBox ? searchBox.value.trim() : '';
+    const searchInput = document.getElementById('address-input');
+    const address = searchInput ? searchInput.value.trim() : '';
     
     if (!address || address.length === 0) {
         handleApiError('Please enter an address to search');
@@ -184,10 +184,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Also allow Enter key to search
-    const searchBox = document.querySelector('input[placeholder*="Sök address"]') || 
-                      document.querySelector('input[type="text"]');
-    if (searchBox) {
-        searchBox.addEventListener('keypress', function(e) {
+    const searchInput = document.getElementById('address-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 searchAddress();
             }
@@ -216,9 +215,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Set Data tab as active by default (already done in HTML, but ensure it)
+    // Set Data tab as active by default
     const dataTab = document.querySelector('[onclick*="switchTab(event, 2)"]');
     if (dataTab) {
         dataTab.click();
+    }
+    
+    // Auto-load map with correlation address on page load
+    logToConsole('INIT', 'Checking for auto-load on page load...');
+    if (shouldAutoLoad && searchInput && searchInput.value && searchInput.value.trim() !== '' && searchInput.value !== '{ADDRESS}') {
+        logToConsole('INIT', `Auto-loading map for: ${searchInput.value}`);
+        // Small delay to ensure everything is initialized
+        setTimeout(searchAddress, 300);
     }
 });

@@ -672,468 +672,470 @@ fn format_matches_html(result: &CorrelationResult) -> String {
         ),
         (None, None) => "<div class='no-match'>❌ No matches found</div>".to_string(),
     }
-}
 
-type Dat = Result<Vec<(String, f64, String)>, Box<dyn std::error::Error>>;
 
-/// Correlate addresses with a dataset using the specified algorithm and distance cutoff
-fn correlate_dataset(
-    algorithm: &AlgorithmChoice,
-    addresses: &[AdressClean],
-    zones: &[MiljoeDataClean],
-    cutoff: f64,
-    pb: &ProgressBar,
-) -> Dat {
-    let counter = Arc::new(AtomicUsize::new(0));
+    type Dat = Result<Vec<(String, f64, String)>, Box<dyn std::error::Error>>;
 
-    let results: Vec<_> = match algorithm {
-        AlgorithmChoice::DistanceBased => {
-            let algo = DistanceBasedAlgo;
-            addresses
-                .par_iter()
-                .filter_map(|addr| {
-                    let (idx, dist) = algo.correlate(addr, zones)?;
-                    if dist > cutoff {
-                        return None;
-                    }
-                    let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-
-                    let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count.is_multiple_of(100) || count == addresses.len() {
-                        pb.set_position(count as u64);
-                    }
-
-                    Some((addr.adress.clone(), dist, info))
-                })
-                .collect()
-        }
-        AlgorithmChoice::Raycasting => {
-            let algo = RaycastingAlgo;
-            addresses
-                .par_iter()
-                .filter_map(|addr| {
-                    let (idx, dist) = algo.correlate(addr, zones)?;
-                    if dist > cutoff {
-                        return None;
-                    }
-                    let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-
-                    let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count.is_multiple_of(100) || count == addresses.len() {
-                        pb.set_position(count as u64);
-                    }
-
-                    Some((addr.adress.clone(), dist, info))
-                })
-                .collect()
-        }
-        AlgorithmChoice::OverlappingChunks => {
-            let algo = OverlappingChunksAlgo::new(zones);
-            addresses
-                .par_iter()
-                .filter_map(|addr| {
-                    let (idx, dist) = algo.correlate(addr, zones)?;
-                    if dist > cutoff {
-                        return None;
-                    }
-                    let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-
-                    let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count.is_multiple_of(100) || count == addresses.len() {
-                        pb.set_position(count as u64);
-                    }
-
-                    Some((addr.adress.clone(), dist, info))
-                })
-                .collect()
-        }
-        AlgorithmChoice::RTree => {
-            let algo = RTreeSpatialAlgo::new(zones);
-            addresses
-                .par_iter()
-                .filter_map(|addr| {
-                    let (idx, dist) = algo.correlate(addr, zones)?;
-                    if dist > cutoff {
-                        return None;
-                    }
-                    let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-
-                    let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count.is_multiple_of(100) || count == addresses.len() {
-                        pb.set_position(count as u64);
-                    }
-
-                    Some((addr.adress.clone(), dist, info))
-                })
-                .collect()
-        }
-        AlgorithmChoice::KDTree => {
-            let algo = KDTreeSpatialAlgo::new(zones);
-            addresses
-                .par_iter()
-                .filter_map(|addr| {
-                    let (idx, dist) = algo.correlate(addr, zones)?;
-                    if dist > cutoff {
-                        return None;
-                    }
-                    let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-
-                    let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count.is_multiple_of(100) || count == addresses.len() {
-                        pb.set_position(count as u64);
-                    }
-
-                    Some((addr.adress.clone(), dist, info))
-                })
-                .collect()
-        }
-        AlgorithmChoice::Grid => {
-            let algo = GridNearestAlgo::new(zones);
-            addresses
-                .par_iter()
-                .filter_map(|addr| {
-                    let (idx, dist) = algo.correlate(addr, zones)?;
-                    if dist > cutoff {
-                        return None;
-                    }
-                    let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-
-                    let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                    if count.is_multiple_of(100) || count == addresses.len() {
-                        pb.set_position(count as u64);
-                    }
-
-                    Some((addr.adress.clone(), dist, info))
-                })
-                .collect()
-        }
-    };
-
-    pb.set_position(addresses.len() as u64);
-    Ok(results)
-}
-
-/// Merge correlate results from two datasets
-fn merge_results(
-    addresses: &[AdressClean],
-    miljo_results: &[(String, f64, String)],
-    parkering_results: &[(String, f64, String)],
-) -> Vec<CorrelationResult> {
-    let miljo_map: std::collections::HashMap<_, _> = miljo_results
-        .iter()
-        .map(|(addr, dist, info)| (addr.clone(), (*dist, info.clone())))
-        .collect();
-
-    let parkering_map: std::collections::HashMap<_, _> = parkering_results
-        .iter()
-        .map(|(addr, dist, info)| (addr.clone(), (*dist, info.clone())))
-        .collect();
-
-    addresses
-        .iter()
-        .map(|addr| {
-            let miljo_match = miljo_map.get(&addr.adress).map(|(d, i)| (*d, i.clone()));
-            let parkering_match = parkering_map
-                .get(&addr.adress)
-                .map(|(d, i)| (*d, i.clone()));
-
-            CorrelationResult {
-                address: addr.adress.clone(),
-                postnummer: addr.postnummer.clone(),
-                miljo_match,
-                parkering_match,
-            }
-        })
-        .collect()
-}
-
-fn run_benchmark(sample_size: usize, cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
-    // Load data
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for benchmarking...");
-
-    let (addresses, zones) = amp_core::api::api_miljo_only()?;
-
-    // Validate sample size
-    let actual_sample_size = sample_size.min(addresses.len());
-    let requested_msg = if sample_size > addresses.len() {
-        format!(
-            " (requested {} but only {} available)",
-            sample_size,
-            addresses.len()
-        )
-    } else {
-        String::new()
-    };
-
-    pb.finish_with_message(format!(
-        "✓ Loaded {} addresses, {} zones{}",
-        addresses.len(),
-        zones.len(),
-        requested_msg
-    ));
-
-    // Let user select which algorithms to benchmark
-    let selected_algos = select_algorithms();
-
-    let benchmarker = Benchmarker::new(addresses, zones);
-
-    println!(
-        "🏁 Benchmarking {} selected algorithm(s) with {} samples (distance cutoff: {}m)\n",
-        selected_algos.len(),
-        actual_sample_size,
-        cutoff as i32
-    );
-
-    // Create multi-progress for selected algorithms
-    let multi_pb = MultiProgress::new();
-
-    // Create progress bars for each selected algorithm
-    let pbs: Vec<_> = selected_algos
-        .iter()
-        .map(|name| {
-            let pb = multi_pb.add(ProgressBar::new(actual_sample_size as u64));
-            pb.set_style(
-                ProgressStyle::default_bar()
-                    .template(&format!(
-                        "{{spinner:.green}} [{:20}] [{{bar:30.cyan/blue}}] {{pos}}/{{len}} {{msg}}",
-                        name
-                    ))
-                    .unwrap()
-                    .progress_chars("█▓▒░ "),
-            );
-            pb.set_message("waiting...");
-            pb
-        })
-        .collect();
-
-    // Run benchmarks with progress updates
-    let results = benchmark_selected_with_progress(
-        &benchmarker,
-        actual_sample_size,
-        &selected_algos,
-        &pbs,
-        cutoff,
-    );
-
-    // Finish all progress bars
-    for pb in pbs {
-        pb.finish_and_clear();
-    }
-
-    println!(
-        "\n📊 Benchmark Results (distance cutoff: {}m):\n",
-        cutoff as i32
-    );
-    Benchmarker::print_results(&results);
-
-    Ok(())
-}
-
-type Alg<'a> = Vec<(
-    &'a str,
-    fn(&Benchmarker, &[AdressClean], &ProgressBar, &AtomicUsize, &Arc<AtomicUsize>, f64) -> (),
-)>;
-
-fn benchmark_selected_with_progress(
-    benchmarker: &Benchmarker,
-    sample_size: usize,
-    selected_algos: &[&str],
-    pbs: &[ProgressBar],
-    cutoff: f64,
-) -> Vec<amp_core::benchmark::BenchmarkResult> {
-    use amp_core::benchmark::BenchmarkResult;
-
-    let addresses_to_test = &benchmarker.addresses[..sample_size];
-
-    let mut results = Vec::new();
-
-    let all_algos: Alg = vec![
-        (
-            "Distance-Based",
-            |bm, addrs, pb, matches, counter, cutoff| {
-                let algo = DistanceBasedAlgo;
-                run_single_benchmark(
-                    &algo,
-                    addrs,
-                    &bm.parking_lines,
-                    pb,
-                    matches,
-                    counter,
-                    "Distance-Based",
-                    cutoff,
-                );
-            },
-        ),
-        ("Raycasting", |bm, addrs, pb, matches, counter, cutoff| {
-            let algo = RaycastingAlgo;
-            run_single_benchmark(
-                &algo,
-                addrs,
-                &bm.parking_lines,
-                pb,
-                matches,
-                counter,
-                "Raycasting",
-                cutoff,
-            );
-        }),
-        (
-            "Overlapping Chunks",
-            |bm, addrs, pb, matches, counter, cutoff| {
-                let algo = OverlappingChunksAlgo::new(&bm.parking_lines);
-                run_single_benchmark(
-                    &algo,
-                    addrs,
-                    &bm.parking_lines,
-                    pb,
-                    matches,
-                    counter,
-                    "Overlapping Chunks",
-                    cutoff,
-                );
-            },
-        ),
-        ("R-Tree", |bm, addrs, pb, matches, counter, cutoff| {
-            let algo = RTreeSpatialAlgo::new(&bm.parking_lines);
-            run_single_benchmark(
-                &algo,
-                addrs,
-                &bm.parking_lines,
-                pb,
-                matches,
-                counter,
-                "R-Tree",
-                cutoff,
-            );
-        }),
-        ("KD-Tree", |bm, addrs, pb, matches, counter, cutoff| {
-            let algo = KDTreeSpatialAlgo::new(&bm.parking_lines);
-            run_single_benchmark(
-                &algo,
-                addrs,
-                &bm.parking_lines,
-                pb,
-                matches,
-                counter,
-                "KD-Tree",
-                cutoff,
-            );
-        }),
-        ("Grid", |bm, addrs, pb, matches, counter, cutoff| {
-            let algo = GridNearestAlgo::new(&bm.parking_lines);
-            run_single_benchmark(
-                &algo,
-                addrs,
-                &bm.parking_lines,
-                pb,
-                matches,
-                counter,
-                "Grid",
-                cutoff,
-            );
-        }),
-    ];
-
-    let mut pb_idx = 0;
-    for (name, run_fn) in all_algos.iter() {
-        // Only run if this algorithm was selected
-        if !selected_algos.contains(name) {
-            continue;
-        }
-
-        pbs[pb_idx].set_message("running...");
-
-        let start = Instant::now();
-        let matches = AtomicUsize::new(0);
+    /// Correlate addresses with a dataset using the specified algorithm and distance cutoff
+    fn correlate_dataset(
+        algorithm: &AlgorithmChoice,
+        addresses: &[AdressClean],
+        zones: &[MiljoeDataClean],
+        cutoff: f64,
+        pb: &ProgressBar,
+    ) -> Dat {
         let counter = Arc::new(AtomicUsize::new(0));
 
-        run_fn(
-            benchmarker,
-            addresses_to_test,
-            &pbs[pb_idx],
-            &matches,
-            &counter,
+        let results: Vec<_> = match algorithm {
+            AlgorithmChoice::DistanceBased => {
+                let algo = DistanceBasedAlgo;
+                addresses
+                    .par_iter()
+                    .filter_map(|addr| {
+                        let (idx, dist) = algo.correlate(addr, zones)?;
+                        if dist > cutoff {
+                            return None;
+                        }
+                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+
+                        let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
+                        if count.is_multiple_of(100) || count == addresses.len() {
+                            pb.set_position(count as u64);
+                        }
+
+                        Some((addr.adress.clone(), dist, info))
+                    })
+                    .collect()
+            }
+            AlgorithmChoice::Raycasting => {
+                let algo = RaycastingAlgo;
+                addresses
+                    .par_iter()
+                    .filter_map(|addr| {
+                        let (idx, dist) = algo.correlate(addr, zones)?;
+                        if dist > cutoff {
+                            return None;
+                        }
+                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+
+                        let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
+                        if count.is_multiple_of(100) || count == addresses.len() {
+                            pb.set_position(count as u64);
+                        }
+
+                        Some((addr.adress.clone(), dist, info))
+                    })
+                    .collect()
+            }
+            AlgorithmChoice::OverlappingChunks => {
+                let algo = OverlappingChunksAlgo::new(zones);
+                addresses
+                    .par_iter()
+                    .filter_map(|addr| {
+                        let (idx, dist) = algo.correlate(addr, zones)?;
+                        if dist > cutoff {
+                            return None;
+                        }
+                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+
+                        let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
+                        if count.is_multiple_of(100) || count == addresses.len() {
+                            pb.set_position(count as u64);
+                        }
+
+                        Some((addr.adress.clone(), dist, info))
+                    })
+                    .collect()
+            }
+            AlgorithmChoice::RTree => {
+                let algo = RTreeSpatialAlgo::new(zones);
+                addresses
+                    .par_iter()
+                    .filter_map(|addr| {
+                        let (idx, dist) = algo.correlate(addr, zones)?;
+                        if dist > cutoff {
+                            return None;
+                        }
+                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+
+                        let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
+                        if count.is_multiple_of(100) || count == addresses.len() {
+                            pb.set_position(count as u64);
+                        }
+
+                        Some((addr.adress.clone(), dist, info))
+                    })
+                    .collect()
+            }
+            AlgorithmChoice::KDTree => {
+                let algo = KDTreeSpatialAlgo::new(zones);
+                addresses
+                    .par_iter()
+                    .filter_map(|addr| {
+                        let (idx, dist) = algo.correlate(addr, zones)?;
+                        if dist > cutoff {
+                            return None;
+                        }
+                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+
+                        let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
+                        if count.is_multiple_of(100) || count == addresses.len() {
+                            pb.set_position(count as u64);
+                        }
+
+                        Some((addr.adress.clone(), dist, info))
+                    })
+                    .collect()
+            }
+            AlgorithmChoice::Grid => {
+                let algo = GridNearestAlgo::new(zones);
+                addresses
+                    .par_iter()
+                    .filter_map(|addr| {
+                        let (idx, dist) = algo.correlate(addr, zones)?;
+                        if dist > cutoff {
+                            return None;
+                        }
+                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+
+                        let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
+                        if count.is_multiple_of(100) || count == addresses.len() {
+                            pb.set_position(count as u64);
+                        }
+
+                        Some((addr.adress.clone(), dist, info))
+                    })
+                    .collect()
+            }
+        };
+
+        pb.set_position(addresses.len() as u64);
+        Ok(results)
+    }
+
+    /// Merge correlate results from two datasets
+    fn merge_results(
+        addresses: &[AdressClean],
+        miljo_results: &[(String, f64, String)],
+        parkering_results: &[(String, f64, String)],
+    ) -> Vec<CorrelationResult> {
+        let miljo_map: std::collections::HashMap<_, _> = miljo_results
+            .iter()
+            .map(|(addr, dist, info)| (addr.clone(), (*dist, info.clone())))
+            .collect();
+
+        let parkering_map: std::collections::HashMap<_, _> = parkering_results
+            .iter()
+            .map(|(addr, dist, info)| (addr.clone(), (*dist, info.clone())))
+            .collect();
+
+        addresses
+            .iter()
+            .map(|addr| {
+                let miljo_match = miljo_map.get(&addr.adress).map(|(d, i)| (*d, i.clone()));
+                let parkering_match = parkering_map
+                    .get(&addr.adress)
+                    .map(|(d, i)| (*d, i.clone()));
+
+                CorrelationResult {
+                    address: addr.adress.clone(),
+                    postnummer: addr.postnummer.clone(),
+                    miljo_match,
+                    parkering_match,
+                }
+            })
+            .collect()
+    }
+
+    fn run_benchmark(sample_size: usize, cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
+        // Load data
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+        pb.set_message("Loading data for benchmarking...");
+
+        let (addresses, zones) = amp_core::api::api_miljo_only()?;
+
+        // Validate sample size
+        let actual_sample_size = sample_size.min(addresses.len());
+        let requested_msg = if sample_size > addresses.len() {
+            format!(
+                " (requested {} but only {} available)",
+                sample_size,
+                addresses.len()
+            )
+        } else {
+            String::new()
+        };
+
+        pb.finish_with_message(format!(
+            "✓ Loaded {} addresses, {} zones{}",
+            addresses.len(),
+            zones.len(),
+            requested_msg
+        ));
+
+        // Let user select which algorithms to benchmark
+        let selected_algos = select_algorithms();
+
+        let benchmarker = Benchmarker::new(addresses, zones);
+
+        println!(
+            "🏁 Benchmarking {} selected algorithm(s) with {} samples (distance cutoff: {}m)\n",
+            selected_algos.len(),
+            actual_sample_size,
+            cutoff as i32
+        );
+
+        // Create multi-progress for selected algorithms
+        let multi_pb = MultiProgress::new();
+
+        // Create progress bars for each selected algorithm
+        let pbs: Vec<_> = selected_algos
+            .iter()
+            .map(|name| {
+                let pb = multi_pb.add(ProgressBar::new(actual_sample_size as u64));
+                pb.set_style(
+                    ProgressStyle::default_bar()
+                        .template(&format!(
+                            "{{spinner:.green}} [{:20}] [{{bar:30.cyan/blue}}] {{pos}}/{{len}} {{msg}}",
+                            name
+                        ))
+                        .unwrap()
+                        .progress_chars("█▓▒░ "),
+                );
+                pb.set_message("waiting...");
+                pb
+            })
+            .collect();
+
+        // Run benchmarks with progress updates
+        let results = benchmark_selected_with_progress(
+            &benchmarker,
+            actual_sample_size,
+            &selected_algos,
+            &pbs,
             cutoff,
         );
 
-        let total_duration = start.elapsed();
-        let avg_per_address = total_duration / addresses_to_test.len() as u32;
+        // Finish all progress bars
+        for pb in pbs {
+            pb.finish_and_clear();
+        }
 
-        pbs[pb_idx].finish_with_message(format!("✓ {:.2?}", total_duration));
+        println!(
+            "\n📊 Benchmark Results (distance cutoff: {}m):\n",
+            cutoff as i32
+        );
+        Benchmarker::print_results(&results);
 
-        results.push(BenchmarkResult {
-            algorithm_name: name.to_string(),
-            total_duration,
-            avg_per_address,
-            addresses_processed: addresses_to_test.len(),
-            matches_found: matches.load(Ordering::Relaxed),
+        Ok(())
+    }
+
+    type Alg<'a> = Vec<(
+        &'a str,
+        fn(&Benchmarker, &[AdressClean], &ProgressBar, &AtomicUsize, &Arc<AtomicUsize>, f64) -> (),
+    )>;
+
+    fn benchmark_selected_with_progress(
+        benchmarker: &Benchmarker,
+        sample_size: usize,
+        selected_algos: &[&str],
+        pbs: &[ProgressBar],
+        cutoff: f64,
+    ) -> Vec<amp_core::benchmark::BenchmarkResult> {
+        use amp_core::benchmark::BenchmarkResult;
+
+        let addresses_to_test = &benchmarker.addresses[..sample_size];
+
+        let mut results = Vec::new();
+
+        let all_algos: Alg = vec![
+            (
+                "Distance-Based",
+                |bm, addrs, pb, matches, counter, cutoff| {
+                    let algo = DistanceBasedAlgo;
+                    run_single_benchmark(
+                        &algo,
+                        addrs,
+                        &bm.parking_lines,
+                        pb,
+                        matches,
+                        counter,
+                        "Distance-Based",
+                        cutoff,
+                    );
+                },
+            ),
+            ("Raycasting", |bm, addrs, pb, matches, counter, cutoff| {
+                let algo = RaycastingAlgo;
+                run_single_benchmark(
+                    &algo,
+                    addrs,
+                    &bm.parking_lines,
+                    pb,
+                    matches,
+                    counter,
+                    "Raycasting",
+                    cutoff,
+                );
+            }),
+            (
+                "Overlapping Chunks",
+                |bm, addrs, pb, matches, counter, cutoff| {
+                    let algo = OverlappingChunksAlgo::new(&bm.parking_lines);
+                    run_single_benchmark(
+                        &algo,
+                        addrs,
+                        &bm.parking_lines,
+                        pb,
+                        matches,
+                        counter,
+                        "Overlapping Chunks",
+                        cutoff,
+                    );
+                },
+            ),
+            ("R-Tree", |bm, addrs, pb, matches, counter, cutoff| {
+                let algo = RTreeSpatialAlgo::new(&bm.parking_lines);
+                run_single_benchmark(
+                    &algo,
+                    addrs,
+                    &bm.parking_lines,
+                    pb,
+                    matches,
+                    counter,
+                    "R-Tree",
+                    cutoff,
+                );
+            }),
+            ("KD-Tree", |bm, addrs, pb, matches, counter, cutoff| {
+                let algo = KDTreeSpatialAlgo::new(&bm.parking_lines);
+                run_single_benchmark(
+                    &algo,
+                    addrs,
+                    &bm.parking_lines,
+                    pb,
+                    matches,
+                    counter,
+                    "KD-Tree",
+                    cutoff,
+                );
+            }),
+            ("Grid", |bm, addrs, pb, matches, counter, cutoff| {
+                let algo = GridNearestAlgo::new(&bm.parking_lines);
+                run_single_benchmark(
+                    &algo,
+                    addrs,
+                    &bm.parking_lines,
+                    pb,
+                    matches,
+                    counter,
+                    "Grid",
+                    cutoff,
+                );
+            }),
+        ];
+
+        let mut pb_idx = 0;
+        for (name, run_fn) in all_algos.iter() {
+            // Only run if this algorithm was selected
+            if !selected_algos.contains(name) {
+                continue;
+            }
+
+            pbs[pb_idx].set_message("running...");
+
+            let start = Instant::now();
+            let matches = AtomicUsize::new(0);
+            let counter = Arc::new(AtomicUsize::new(0));
+
+            run_fn(
+                benchmarker,
+                addresses_to_test,
+                &pbs[pb_idx],
+                &matches,
+                &counter,
+                cutoff,
+            );
+
+            let total_duration = start.elapsed();
+            let avg_per_address = total_duration / addresses_to_test.len() as u32;
+
+            pbs[pb_idx].finish_with_message(format!("✓ {:.2?}", total_duration));
+
+            results.push(BenchmarkResult {
+                algorithm_name: name.to_string(),
+                total_duration,
+                avg_per_address,
+                addresses_processed: addresses_to_test.len(),
+                matches_found: matches.load(Ordering::Relaxed),
+            });
+
+            pb_idx += 1;
+        }
+
+        results
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_single_benchmark<A: CorrelationAlgo + Sync>(
+        algo: &A,
+        addresses: &[AdressClean],
+        parking_lines: &[MiljoeDataClean],
+        pb: &ProgressBar,
+        matches: &AtomicUsize,
+        counter: &Arc<AtomicUsize>,
+        _name: &str,
+        cutoff: f64,
+    ) {
+        addresses.par_iter().for_each(|address| {
+            if let Some((_, dist)) = algo.correlate(address, parking_lines)
+                && dist <= cutoff
+            {
+                matches.fetch_add(1, Ordering::Relaxed);
+            }
+
+            let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
+            if count.is_multiple_of(5) || count == addresses.len() {
+                pb.set_position(count as u64);
+            }
         });
 
-        pb_idx += 1;
+        pb.set_position(addresses.len() as u64);
     }
 
-    results
-}
+    async fn check_updates(checksum_file: &str) -> Result<(), Box<dyn std::error::Error>> {
+        println!("\n🔍 Checking for data updates...\n");
 
-#[allow(clippy::too_many_arguments)]
-fn run_single_benchmark<A: CorrelationAlgo + Sync>(
-    algo: &A,
-    addresses: &[AdressClean],
-    parking_lines: &[MiljoeDataClean],
-    pb: &ProgressBar,
-    matches: &AtomicUsize,
-    counter: &Arc<AtomicUsize>,
-    _name: &str,
-    cutoff: f64,
-) {
-    addresses.par_iter().for_each(|address| {
-        if let Some((_, dist)) = algo.correlate(address, parking_lines)
-            && dist <= cutoff
-        {
-            matches.fetch_add(1, Ordering::Relaxed);
-        }
+        let old_checksums = DataChecksum::load_from_file(checksum_file).ok();
 
-        let count = counter.fetch_add(1, Ordering::Relaxed) + 1;
-        if count.is_multiple_of(5) || count == addresses.len() {
-            pb.set_position(count as u64);
-        }
-    });
+        let mut new_checksums = DataChecksum::new(
+            "https://opendata.malmo.se/@fastighets-och-gatukontoret/miljoparkering/73490f00-0d71-4b17-903c-f77ab7664a53".to_string(),
+            "https://opendata.malmo.se/@fastighets-och-gatukontoret/parkeringsavgifter/1a6bd68b-30ca-40a5-9d62-01e2a566982e".to_string(),
+            "https://opendata.malmo.se/@stadsbyggnadskontoret/adresser/caf1cee8-9af2-4a75-8fb7-f1d7cb11daeb".to_string(),
+        );
 
-    pb.set_position(addresses.len() as u64);
-}
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Fetching remote data...");
 
-async fn check_updates(checksum_file: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("\n🔍 Checking for data updates...\n");
+        new_checksums.update_from_remote().await?;
+        pb.finish_with_message("✓ Data fetched");
 
-    let old_checksums = DataChecksum::load_from_file(checksum_file).ok();
-
-    let mut new_checksums = DataChecksum::new(
-        "https://opendata.malmo.se/@fastighets-och-gatukontoret/miljoparkering/73490f00-0d71-4b17-903c-f77ab7664a53".to_string(),
-        "https://opendata.malmo.se/@fastighets-och-gatukontoret/parkeringsavgifter/1a6bd68b-30ca-40a5-9d62-01e2a566982e".to_string(),
-        "https://opendata.malmo.se/@stadsbyggnadskontoret/adresser/caf1cee8-9af2-4a75-8fb7-f1d7cb11daeb".to_string(),
-    );
-
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Fetching remote data...");
-
-    new_checksums.update_from_remote().await?;
-    pb.finish_with_message("✓ Data fetched");
-
-    if let Some(old) = old_checksums {
-        if new_checksums.has_changed(&old) {
-            println!("\n✓ Data has changed!");
-            println!("  Old checksums from: {}", old.last_checked);
-            println!("  New checksums from: {}", new_checksums.last_checked);
+        if let Some(old) = old_checksums {
+            if new_checksums.has_changed(&old) {
+                println!("\n✓ Data has changed!");
+                println!("  Old checksums from: {}", old.last_checked);
+                println!("  New checksums from: {}", new_checksums.last_checked);
+            } else {
+                println!("\n✓ Data is up to date (no changes detected)");
+            }
         } else {
-            println!("\n✓ Data is up to date (no changes detected)");
+            println!("\n✓ No previous checksums found - created new baseline");
         }
-    } else {
-        println!("\n✓ No previous checksums found - created new baseline");
+
+        new_checksums.save_to_file(checksum_file)?;
+        println!("✓ Checksums saved to {}\n", checksum_file);
+
+        Ok(())
     }
-
-    new_checksums.save_to_file(checksum_file)?;
-    println!("✓ Checksums saved to {}\n", checksum_file);
-
-    Ok(())
 }

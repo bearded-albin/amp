@@ -110,11 +110,7 @@ function searchAddress() {
 
 function loadMapWithAddress(address, x, y) {
     logToConsole('MAP', 'Building StadsAtlas URL with miljöparkering layer...');
-    logToConsole('MAP', 'Trying multiple layer parameter formats');
     
-    // Load map in iframe
-    const iframeContainer = document.getElementById('map-container');
-    const mapPlaceholder = iframeContainer.querySelector('.map-placeholder');
     const iframe = document.getElementById('stadsatlas-iframe');
     
     if (!iframe) {
@@ -122,40 +118,24 @@ function loadMapWithAddress(address, x, y) {
         return;
     }
     
-    // IMPORTANT: Hide placeholder FIRST before setting iframe src
-    // This ensures Origo has proper space to render
-    logToConsole('MAP', 'Hiding placeholder and preparing container for map rendering');
-    mapPlaceholder.style.display = 'none';
-    iframe.style.display = 'block';
-    
-    // Build URL with multiple layer parameter attempts
+    // Build URL with layer parameters
     const baseUrl = 'https://stadsatlas.malmo.se/stadsatlas/';
     const mapUrl = `${baseUrl}#center=${x},${y}&zoom=18&pin=${x},${y}&layers=miljoparkering_l&layerIds=miljoparkering_l&visibleLayers=miljoparkering_l`;
     
     logToConsole('MAP', `URL: ${mapUrl.substring(0, 100)}...`);
+    logToConsole('MAP', 'Setting iframe source to load StadsAtlas map...');
     
-    // Force container dimensions for Origo
-    iframeContainer.style.width = '100%';
-    iframeContainer.style.height = '100%';
-    iframe.style.width = '100%';
-    iframe.style.height = '100%';
-    logToConsole('MAP', `Container dimensions forced: ${iframeContainer.offsetWidth}x${iframeContainer.offsetHeight}`);
-    
-    // Set the iframe source AFTER ensuring container is visible and sized
+    // Set the iframe source to load the map
     iframe.src = mapUrl;
     
-    logToConsole('MAP', 'Map loaded in persistent container at top');
+    logToConsole('MAP', 'Map iframe source set');
     logToConsole('LAYER', 'Attempted to activate miljöparkering layer via URL parameters');
     logToConsole('LAYER', 'If layer not visible, manually activate it using the Layers panel in the map');
     
     // Wait for iframe to load
     iframe.onload = function() {
         logToConsole('MAP', 'Iframe loaded successfully');
-        logToConsole('LAYER', 'Note: Layer activation via URL may require manual confirmation in StadsAtlas UI');
-        
-        // Double-check dimensions after iframe load
-        logToConsole('DEBUG', `Final container dimensions: ${iframeContainer.offsetWidth}x${iframeContainer.offsetHeight}`);
-        logToConsole('DEBUG', `Final iframe dimensions: ${iframe.offsetWidth}x${iframe.offsetHeight}`);
+        logToConsole('MAP', 'Map should now be visible with coordinates pinned');
     };
 }
 
@@ -219,7 +199,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Ensure iframe container has proper dimensions
     const mapContainer = document.getElementById('map-container');
     if (mapContainer) {
-        // Force dimension calculation
         const computedStyle = window.getComputedStyle(mapContainer);
         const width = computedStyle.width;
         const height = computedStyle.height;

@@ -357,7 +357,7 @@ fn run_correlation(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);;
     pb.set_message("Loading data...");
 
     let (addresses, miljodata, parkering): (
@@ -535,7 +535,7 @@ fn run_test_mode(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);;
     pb.set_message("Loading data for testing...");
 
     let (addresses, miljodata, parkering): (
@@ -666,218 +666,354 @@ fn get_browser_executable() -> String {
     "firefox".to_string()
 }
 
+fn format_matches_html(result: &CorrelationResult) -> String {
+    match (&result.miljo_match, &result.parkering_match) {
+        (Some((dist_m, info_m)), Some((dist_p, info_p))) => {
+            format!(
+                "<div class=\"match\">\n    <div class=\"match-item\">\n        <strong>🌍 Miljödata</strong><br>\n        <span class=\"distance\">{:.2}m away</span><br>\n        <div class=\"info\">{}</div>\n    </div>\n</div>\n<div class=\"match\">\n    <div class=\"match-item\">\n        <strong>🅿️ Parkering</strong><br>\n        <span class=\"distance\">{:.2}m away</span><br>\n        <div class=\"info\">{}</div>\n    </div>\n</div>",
+                dist_m, info_m, dist_p, info_p
+            )
+        }
+        (Some((dist, info)), None) => {
+            format!(
+                "<div class=\"match\">\n    <div class=\"match-item\">\n        <strong>🌍 Miljödata</strong><br>\n        <span class=\"distance\">{:.2}m away</span><br>\n        <div class=\"info\">{}</div>\n    </div>\n</div>",
+                dist, info
+            )
+        }
+        (None, Some((dist, info))) => {
+            format!(
+                "<div class=\"match\">\n    <div class=\"match-item\">\n        <strong>🅿️ Parkering</strong><br>\n        <span class=\"distance\">{:.2}m away</span><br>\n        <div class=\"info\">{}</div>\n    </div>\n</div>",
+                dist, info
+            )
+        }
+        (None, None) => "<div class='no-match'>✗ No matches found</div>".to_string(),
+    }
+}
+
+/// Create a single HTML page with 4 integrated tabs
+/// Tab 1: StadsAtlas Live Iframe with working address search
+/// Tab 2: Instructions
+/// Tab 3: Correlation Data
+/// Tab 4: Debug Console
 fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> String {
+    let matches_html = format_matches_html(result);
     let address_escaped = address.replace('"', "&quot;");
 
-    let mut html = String::from(
-        r#"<!DOCTYPE html>
-<html>
-<head>
-"#,
-    );
+    let mut html = String::new();
+    html.push_str("<!DOCTYPE html>\n<html>\n<head>\n");
     html.push_str(&format!(
         "    <title>AMP Testing Interface - {}</title>\n",
         address
     ));
-    html.push_str(r#"    <meta charset=\"UTF-8\">
-    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { height: 100%; width: 100%; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; display: flex; flex-direction: column; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); flex-shrink: 0; }
-        .header h1 { font-size: 24px; margin-bottom: 8px; }
-        .header .address { font-size: 14px; opacity: 0.9; font-weight: 500; }
-        .tab-container { flex: 1; display: flex; flex-direction: column; max-width: 1400px; width: 100%; margin: 20px auto; background: white; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); overflow: hidden; }
-        .tab-buttons { display: flex; border-bottom: 2px solid #e0e0e0; background: #fafafa; flex-shrink: 0; }
-        .tab-btn { flex: 1; padding: 16px 20px; background: none; border: none; cursor: pointer; font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; transition: all 0.3s ease; position: relative; }
-        .tab-btn:hover { background: #f0f0f0; color: #667eea; }
-        .tab-btn.active { color: #667eea; background: white; }
-        .tab-btn.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: #667eea; }
-        .tab-content { display: none; flex: 1; overflow-y: auto; padding: 30px; }
-        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        #tab1 { padding: 0; display: flex; flex-direction: column; }
-        .iframe-wrapper { display: flex; flex-direction: column; flex: 1; height: 100%; }
-        .iframe-container { flex: 1; display: flex; flex-direction: column; min-height: 600px; }
-        iframe { width: 100%; height: 100%; border: none; flex: 1; }
-        .control-panel { background: #f5f5f5; padding: 15px; border-radius: 4px; margin-bottom: 15px; flex-shrink: 0; }
-        .control-button { background: #667eea; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 10px 10px 0; }
-        .control-button:hover { background: #764ba2; }
-        .console-log { background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; margin-top: 15px; border: 1px solid #444; }
-        .log-entry { padding: 4px 0; border-bottom: 1px solid #333; word-break: break-all; }
-        h2 { color: #555; font-size: 18px; margin-top: 25px; margin-bottom: 15px; }
-    </style>
-</head>
-<body>
-    <div class=\"header\">
-        <h1>📍 AMP Correlation Testing Interface</h1>
-"#);
+    html.push_str("    <meta charset=\"UTF-8\">\n");
+    html.push_str(
+        "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n",
+    );
+    html.push_str("    <style>\n");
+    html.push_str("        * { margin: 0; padding: 0; box-sizing: border-box; }\n");
+    html.push_str("        html, body { height: 100%; width: 100%; }\n");
+    html.push_str("        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; display: flex; flex-direction: column; }\n");
+    html.push_str("        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); flex-shrink: 0; }\n");
+    html.push_str("        .header h1 { font-size: 24px; margin-bottom: 8px; }\n");
+    html.push_str(
+        "        .header .address { font-size: 14px; opacity: 0.9; font-weight: 500; }\n",
+    );
+    html.push_str("        .tab-container { flex: 1; display: flex; flex-direction: column; max-width: 1400px; width: 100%; margin: 20px auto; background: white; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); overflow: hidden; }\n");
+    html.push_str("        .tab-buttons { display: flex; border-bottom: 2px solid #e0e0e0; background: #fafafa; flex-shrink: 0; }\n");
+    html.push_str("        .tab-btn { flex: 1; padding: 16px 20px; background: none; border: none; cursor: pointer; font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; transition: all 0.3s ease; position: relative; }\n");
+    html.push_str("        .tab-btn:hover { background: #f0f0f0; color: #667eea; }\n");
+    html.push_str("        .tab-btn.active { color: #667eea; background: white; }\n");
+    html.push_str("        .tab-btn.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: #667eea; }\n");
+    html.push_str(
+        "        .tab-content { display: none; flex: 1; overflow-y: auto; padding: 30px; }\n",
+    );
+    html.push_str("        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }\n");
+    html.push_str("        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }\n");
+    html.push_str("        #tab1 { padding: 0; display: flex; flex-direction: column; }\n");
+    html.push_str("        .iframe-wrapper { display: flex; flex-direction: column; flex: 1; height: 100%; }\n");
+    html.push_str("        .iframe-container { flex: 1; display: flex; flex-direction: column; min-height: 600px; }\n");
+    html.push_str("        iframe { width: 100%; height: 100%; border: none; flex: 1; }\n");
+    html.push_str("        .instruction { background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 15px 0; border-left: 4px solid #4caf50; }\n");
+    html.push_str("        .steps { counter-reset: step-counter; margin: 20px 0; }\n");
+    html.push_str("        .step { counter-increment: step-counter; margin: 15px 0; padding: 15px; background: #f9f9f9; border-radius: 4px; border-left: 3px solid #667eea; }\n");
+    html.push_str("        .step::before { content: counter(step-counter); display: inline-block; background: #667eea; color: white; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; margin-right: 12px; font-weight: bold; font-size: 14px; }\n");
+    html.push_str("        .step strong { color: #667eea; }\n");
+    html.push_str("        .note { color: #666; font-size: 14px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; }\n");
+    html.push_str("        .address-display { background: #fff3e0; padding: 15px; border-radius: 4px; margin: 15px 0; font-weight: bold; border-left: 4px solid #ff9800; }\n");
+    html.push_str("        .field { margin: 20px 0; }\n");
+    html.push_str("        .label { font-weight: bold; color: #666; font-size: 11px; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }\n");
+    html.push_str("        .value { color: #333; padding: 12px; background: #f9f9f9; border-radius: 4px; border-left: 3px solid #667eea; font-size: 14px; }\n");
+    html.push_str("        .match { background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #4caf50; }\n");
+    html.push_str("        .match strong { color: #2e7d32; }\n");
+    html.push_str("        .no-match { background: #ffebee; padding: 15px; border-radius: 4px; border-left: 4px solid #c62828; }\n");
+    html.push_str("        .match-item { margin-bottom: 10px; }\n");
+    html.push_str("        .distance { color: #e67e22; font-weight: bold; font-size: 16px; }\n");
+    html.push_str("        .info { color: #7f8c8d; font-size: 12px; margin-top: 8px; }\n");
+    html.push_str("        h2 { color: #555; font-size: 18px; margin-top: 25px; margin-bottom: 15px; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }\n");
+    html.push_str("        .console-log { background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; max-height: 400px; overflow-y: auto; margin-top: 15px; border: 1px solid #444; }\n");
+    html.push_str("        .console-log .error { color: #ff6b6b; }\n");
+    html.push_str("        .console-log .success { color: #51cf66; }\n");
+    html.push_str("        .console-log .info { color: #4dabf7; }\n");
+    html.push_str("        .console-log .warning { color: #ffd43b; }\n");
+    html.push_str("        .log-entry { padding: 4px 0; border-bottom: 1px solid #333; word-break: break-all; }\n");
+    html.push_str("        .log-timestamp { color: #888; margin-right: 8px; }\n");
+    html.push_str("        .control-button { background: #667eea; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 10px 10px 0; }\n");
+    html.push_str("        .control-button:hover { background: #764ba2; }\n");
+    html.push_str("        .control-panel { background: #f5f5f5; padding: 15px; border-radius: 4px; margin-bottom: 15px; flex-shrink: 0; }\n");
+    html.push_str("        .control-button.retry { background: #ff9800; }\n");
+    html.push_str("        .control-button.retry:hover { background: #e68900; }\n");
+    html.push_str("    </style>\n");
+    html.push_str("</head>\n");
+    html.push_str("<body>\n");
+    html.push_str("    <div class=\"header\">\n");
+    html.push_str("        <h1>📍 AMP Correlation Testing Interface</h1>\n");
     html.push_str(&format!(
-        "        <div class=\\\"address\\\">{}</div>\n",
+        "        <div class=\"address\">{}</div>\n",
         address
     ));
-    html.push_str(r#"    </div>
-    <div class=\"tab-container\">
-        <div class=\"tab-buttons\">
-            <button class=\"tab-btn active\" onclick=\"switchTab(event, 1)\">🗺️ StadsAtlas</button>
-            <button class=\"tab-btn\" onclick=\"switchTab(event, 2)\">📋 Instructions</button>
-            <button class=\"tab-btn\" onclick=\"switchTab(event, 3)\">📊 Data</button>
-            <button class=\"tab-btn\" onclick=\"switchTab(event, 4)\">🐛 Debug</button>
-        </div>
-        <div id=\"tab1\" class=\"tab-content active\">
-            <div class=\"control-panel\">
-                <button class=\"control-button\" onclick=\"searchAddress()\">🔍 Search Address</button>
-                <span id=\"status-indicator\" style=\"color: #666; font-size: 14px; margin-left: 20px;\">Ready</span>
-            </div>
-            <div class=\"iframe-wrapper\">
-                <div class=\"iframe-container\">
-                    <iframe id=\"stadsatlas-iframe\" src=\"https://stadsatlas.malmo.se/stadsatlas/\" title=\"StadsAtlas Map\"></iframe>
-                </div>
-            </div>
-        </div>
-        <div id=\"tab2\" class=\"tab-content\">
-            <h1>📋 StadsAtlas Verification Instructions</h1>
-            <p>Click \"Search Address\" button to navigate map to this address:</p>
-"#);
-    html.push_str(&format!("            <div style=\\\"background: #fff3e0; padding: 15px; margin: 15px 0; border-radius: 4px; font-weight: bold;\\\">{}</div>\n", address));
+    html.push_str("    </div>\n");
+    html.push_str("    <div class=\"tab-container\">\n");
+    html.push_str("        <div class=\"tab-buttons\">\n");
+    html.push_str("            <button class=\"tab-btn active\" onclick=\"switchTab(event, 1)\">🗺️ StadsAtlas</button>\n");
+    html.push_str("            <button class=\"tab-btn\" onclick=\"switchTab(event, 2)\">📋 Instructions</button>\n");
     html.push_str(
-        r#"        </div>
-        <div id=\"tab3\" class=\"tab-content\">
-            <h1>📊 Correlation Result Data</h1>
-"#,
+        "            <button class=\"tab-btn\" onclick=\"switchTab(event, 3)\">📊 Data</button>\n",
     );
+    html.push_str(
+        "            <button class=\"tab-btn\" onclick=\"switchTab(event, 4)\">🐛 Debug</button>\n",
+    );
+    html.push_str("        </div>\n");
+    html.push_str("        <div id=\"tab1\" class=\"tab-content active\">\n");
+    html.push_str("            <div class=\"control-panel\">\n");
+    html.push_str("                <button class=\"control-button\" onclick=\"searchAddress()\">🔍 Search Address</button>\n");
+    html.push_str("                <span id=\"status-indicator\" style=\"color: #666; font-size: 14px; margin-left: 20px;\">Ready</span>\n");
+    html.push_str("            </div>\n");
+    html.push_str("            <div class=\"iframe-wrapper\">\n");
+    html.push_str("                <div class=\"iframe-container\">\n");
+    html.push_str("                    <iframe id=\"stadsatlas-iframe\" src=\"https://stadsatlas.malmo.se/stadsatlas/\" title=\"StadsAtlas Map\"></iframe>\n");
+    html.push_str("                </div>\n");
+    html.push_str("            </div>\n");
+    html.push_str("        </div>\n");
+    html.push_str("        <div id=\"tab2\" class=\"tab-content\">\n");
+    html.push_str("            <h1>📋 StadsAtlas Verification Instructions</h1>\n");
+    html.push_str("            <div class=\"instruction\">✓ Follow these steps to verify the address in StadsAtlas (Tab 1)</div>\n");
     html.push_str(&format!(
-        "            <div><strong>Address:</strong> {}</div>\n",
+        "            <div class=\"address-display\">{}</div>\n",
+        address
+    ));
+    html.push_str("            <div class=\"steps\">\n");
+    html.push_str("                <div class=\"step\"><strong>Click the \"Search Address\" button</strong> at the top of the StadsAtlas tab. The interface will search for your address using Malmö's geo API.</div>\n");
+    html.push_str("                <div class=\"step\">The map will automatically navigate to the address coordinates. Watch as the map centers on the location.</div>\n");
+    html.push_str("                <div class=\"step\">Look for the address marker or highlighted location on the map.</div>\n");
+    html.push_str("                <div class=\"step\">Check the <strong>Layers panel</strong> (on the right side) and verify layers are visible, especially <strong>Miljöparkering</strong> or <strong>Parkering</strong> layers if applicable.</div>\n");
+    html.push_str("                <div class=\"step\">Verify the parking zone information displayed on the map matches the expected correlation data shown in the Data tab.</div>\n");
+    html.push_str("            </div>\n");
+    html.push_str("            <div class=\"note\">💡 <strong>How it works:</strong> We use Malmö's official address search API (geo.malmo.se/api/search) to find coordinates, then navigate StadsAtlas to those coordinates. This is more reliable than injection methods because we're using standard map navigation.</div>\n");
+    html.push_str("            <div class=\"note\">✅ <strong>Why this works:</strong> The search happens in the parent page (no sandbox), and we just tell the map to navigate to the found coordinates using URL parameters. Simple and reliable!</div>\n");
+    html.push_str("        </div>\n");
+    html.push_str("        <div id=\"tab3\" class=\"tab-content\">\n");
+    html.push_str("            <h1>📊 Correlation Result Data</h1>\n");
+    html.push_str("            <div class=\"field\">\n");
+    html.push_str("                <div class=\"label\">Address</div>\n");
+    html.push_str(&format!(
+        "                <div class=\"value\">{}</div>\n",
         result.address
     ));
+    html.push_str("            </div>\n");
+    html.push_str("            <div class=\"field\">\n");
+    html.push_str("                <div class=\"label\">Postal Code</div>\n");
     html.push_str(&format!(
-        "            <div><strong>Postal Code:</strong> {}</div>\n",
+        "                <div class=\"value\">{}</div>\n",
         result.postnummer
     ));
+    html.push_str("            </div>\n");
+    html.push_str("            <div class=\"field\">\n");
+    html.push_str("                <div class=\"label\">Dataset Source</div>\n");
     html.push_str(&format!(
-        "            <div><strong>Dataset Source:</strong> {}</div>\n",
+        "                <div class=\"value\">{}</div>\n",
         result.dataset_source()
     ));
+    html.push_str("            </div>\n");
+    html.push_str("            <h2>Matched Zones</h2>\n");
+    html.push_str(&matches_html);
+    html.push_str("        </div>\n");
+    html.push_str("        <div id=\"tab4\" class=\"tab-content\">\n");
+    html.push_str("            <h1>🐛 Debug Console - Address Search Logs</h1>\n");
+    html.push_str("            <div class=\"note\"><strong>Status:</strong> All address searches are logged below. Also check browser DevTools Console (F12) for extended logs marked with <code>[AMP]</code>.</div>\n");
+    html.push_str("            <div class=\"field\">\n");
+    html.push_str("                <div class=\"label\">Search Status</div>\n");
     html.push_str(
-        r#"        </div>
-        <div id=\"tab4\" class=\"tab-content\">
-            <h1>🐛 Debug Console</h1>
-            <div id=\"message-logs\" class=\"console-log\"></div>
-        </div>
-    </div>
-    <script>
-        const logs = [];
-"#,
+        "                <div class=\"value\" id=\"search-status\">Ready to search...</div>\n",
     );
-    html.push_str(&format!(
-        "        const addressToSearch = '{}';
-",
-        address_escaped
-    ));
-    html.push_str(r#"        const iframeElement = document.getElementById('stadsatlas-iframe');
+    html.push_str("            </div>\n");
+    html.push_str("            <div class=\"field\">\n");
+    html.push_str("                <div class=\"label\">Search Results</div>\n");
+    html.push_str(
+        "                <div class=\"value\" id=\"search-results\">No searches yet</div>\n",
+    );
+    html.push_str("            </div>\n");
+    html.push_str(
+        "            <div class=\"label\" style=\"margin-top: 20px;\">Message Logs</div>\n",
+    );
+    html.push_str("            <div class=\"console-log\" id=\"message-logs\"></div>\n");
+    html.push_str("        </div>\n");
+    html.push_str("    </div>\n");
+    html.push_str("    <script>\n");
+    html.push_str("        const logs = [];\n");
+    html.push_str(&("        const addressToSearch = '".to_owned() + &address_escaped + "';\n"));
+    html.push_str("        const iframeElement = document.getElementById('stadsatlas-iframe');\n");
+    html.push('\n');
+    html.push_str("        function logMessage(category, message, type = 'info') {\n");
+    html.push_str("            const timestamp = new Date().toLocaleTimeString();\n");
+    html.push_str("            const logEntry = {timestamp, category, message, type};\n");
+    html.push_str("            logs.push(logEntry);\n");
+    html.push('\n');
+    html.push_str(
+        "            console.log('[AMP] [' + timestamp + '] [' + category + '] ' + message);\n",
+    );
+    html.push('\n');
+    html.push_str("            const logsDiv = document.getElementById('message-logs');\n");
+    html.push_str("            if (logsDiv) {\n");
+    html.push_str("                const entry = document.createElement('div');\n");
+    html.push_str("                entry.className = 'log-entry ' + type;\n");
+    html.push_str("                entry.innerHTML = '<span class=\"log-timestamp\">[' + timestamp + ']</span> <strong>' + category + ':</strong> ' + message;\n");
+    html.push_str("                logsDiv.appendChild(entry);\n");
+    html.push_str("                logsDiv.scrollTop = logsDiv.scrollHeight;\n");
+    html.push_str("            }\n");
+    html.push_str("        }\n");
+    html.push('\n');
+    html.push_str("        function updateStatus(status, statusId = 'search-status') {\n");
+    html.push_str("            const statusDiv = document.getElementById(statusId);\n");
+    html.push_str("            if (statusDiv) {\n");
+    html.push_str("                statusDiv.textContent = status;\n");
+    html.push_str("            }\n");
+    html.push_str("        }\n");
+    html.push('\n');
+    html.push_str("        function switchTab(event, tabNumber) {\n");
+    html.push_str("            const tabs = document.querySelectorAll('.tab-content');\n");
+    html.push_str("            tabs.forEach(function(tab) { tab.classList.remove('active'); });\n");
+    html.push_str("            const btns = document.querySelectorAll('.tab-btn');\n");
+    html.push_str("            btns.forEach(function(btn) { btn.classList.remove('active'); });\n");
+    html.push_str(
+        "            document.getElementById('tab' + tabNumber).classList.add('active');\n",
+    );
+    html.push_str("            event.target.classList.add('active');\n");
+    html.push_str("        }\n");
+    html.push('\n');
+    html.push_str("        async function searchAddress() {\n");
+    html.push_str("            logMessage('SEARCH', 'Starting address search for: ' + addressToSearch, 'info');\n");
+    html.push_str("            updateStatus('⏳ Searching for: ' + addressToSearch);\n");
+    html.push('\n');
+    html.push_str("            try {\n");
+    html.push_str("                // Call Malmö's address search API\n");
+    html.push_str("                const searchUrl = 'https://geo.malmo.se/api/search?q=' + encodeURIComponent(addressToSearch);\n");
+    html.push_str("                logMessage('API', 'Calling: ' + searchUrl.substring(0, 60) + '...', 'info');\n");
+    html.push('\n');
+    html.push_str("                const response = await fetch(searchUrl);\n");
+    html.push_str("                if (!response.ok) {\n");
+    html.push_str(
+        "                    throw new Error('API returned status ' + response.status);\n",
+    );
+    html.push_str("                }\n");
+    html.push('\n');
+    html.push_str("                const results = await response.json();\n");
+    html.push_str("                logMessage('API', 'Response received with ' + results.length + ' results', 'success');\n");
+    html.push('\n');
+    html.push_str("                if (results.length === 0) {\n");
+    html.push_str("                    logMessage('RESULT', 'No address found matching: ' + addressToSearch, 'warning');\n");
+    html.push_str("                    updateStatus('❌ Address not found in Malmö');\n");
+    html.push_str("                    return;\n");
+    html.push_str("                }\n");
+    html.push('\n');
+    html.push_str("                const result = results[0];\n");
+    html.push_str("                logMessage('PARSE', 'Result keys: ' + Object.keys(result).join(', '), 'info');\n");
+    html.push_str("                \n");
+    html.push_str("                // Parse Malmö API response with WKT GEOM format\n");
+    html.push_str("                const name = result.NAMN || result.name || result.adress || 'Unknown';\n");
+    html.push_str("                let x, y;\n");
+    html.push_str("                \n");
+    html.push_str("                // Extract from WKT POINT format: POINT(X Y)\n");
+    html.push_str("                if (result.GEOM) {\n");
+    html.push_str("                    const match = result.GEOM.match(/POINT\\s*\\(([^\\s]+)\\s+([^)]+)\\)/);\n");
+    html.push_str("                    if (match) {\n");
+    html.push_str("                        x = parseFloat(match[1]);\n");
+    html.push_str("                        y = parseFloat(match[2]);\n");
+    html.push_str("                        logMessage('PARSE', 'Extracted WKT: x=' + x + ', y=' + y, 'info');\n");
+    html.push_str("                    }\n");
+    html.push_str("                }\n");
+    html.push_str("                \n");
+    html.push_str("                // Fallback to x, y properties\n");
+    html.push_str("                if (!x || !y) {\n");
+    html.push_str("                    x = result.x;\n");
+    html.push_str("                    y = result.y;\n");
+    html.push_str("                    if (x && y) logMessage('PARSE', 'Using x, y properties: x=' + x + ', y=' + y, 'info');\n");
+    html.push_str("                }\n");
+    html.push_str("                \n");
+    html.push_str("                if (!x || !y || isNaN(x) || isNaN(y)) {\n");
+    html.push_str(
+        "                    logMessage('ERROR', 'Missing coordinates in response', 'error');\n",
+    );
+    html.push_str("                    updateStatus('❌ Coordinates not found');\n");
+    html.push_str("                    return;\n");
+    html.push_str("                }\n");
+    html.push_str("                \n");
+    html.push_str("                logMessage('RESULT', 'Found: ' + name + ' at (' + x + ', ' + y + ')', 'success');\n");
+    html.push('\n');
+    html.push_str("                // Build StadsAtlas URL with coordinates\n");
+    html.push_str("                const mapUrl = 'https://stadsatlas.malmo.se/stadsatlas/#center=' + x + ',' + y + '&zoom=15';\n");
+    html.push_str("                logMessage('MAP', 'Navigating to: ' + mapUrl.substring(0, 80) + '...', 'info');\n");
+    html.push('\n');
+    html.push_str("                // Navigate iframe\n");
+    html.push_str("                iframeElement.src = mapUrl;\n");
+    html.push_str(
+        "                logMessage('MAP', 'iframe navigated successfully', 'success');\n",
+    );
+    html.push_str("                updateStatus('✅ Map navigated to: ' + name);\n");
+    html.push('\n');
+    html.push_str("            } catch (error) {\n");
+    html.push_str(
+        "                logMessage('ERROR', 'Search failed: ' + error.message, 'error');\n",
+    );
+    html.push_str("                updateStatus('❌ Error: ' + error.message);\n");
+    html.push_str("            }\n");
+    html.push_str("        }\n");
+    html.push('\n');
+    html.push_str("        // Track iframe loading state\n");
+    html.push_str("        iframeElement.addEventListener('load', function() {\n");
+    html.push_str(
+        "            logMessage('INIT', 'StadsAtlas iframe loaded and ready', 'success');\n",
+    );
+    html.push_str("        });\n");
+    html.push('\n');
+    html.push_str("        iframeElement.addEventListener('error', function() {\n");
+    html.push_str(
+        "            logMessage('ERROR', 'Failed to load StadsAtlas iframe', 'error');\n",
+    );
+    html.push_str("        });\n");
+    html.push('\n');
+    html.push_str("        // Initial status\n");
+    html.push_str("        window.addEventListener('load', function() {\n");
+    html.push_str("            logMessage('READY', 'AMP Testing Interface loaded. Ready to search address.', 'info');\n");
+    html.push_str("        });\n");
+    html.push_str("    </script>\n");
+    html.push_str("</body>\n");
+    html.push_str("</html>");
 
-        function logMessage(category, message, type = 'info') {
-            const timestamp = new Date().toLocaleTimeString();
-            console.log('[AMP] [' + timestamp + '] [' + category + '] ' + message);
-            const logsDiv = document.getElementById('message-logs');
-            if (logsDiv) {
-                const entry = document.createElement('div');
-                entry.className = 'log-entry';
-                entry.innerHTML = '<span style=\"color: #888;\">[' + timestamp + ']</span> <strong>' + category + ':</strong> ' + message;
-                logsDiv.appendChild(entry);
-                logsDiv.scrollTop = logsDiv.scrollHeight;
-            }
-        }
-
-        function switchTab(event, tabNumber) {
-            const tabs = document.querySelectorAll('.tab-content');
-            tabs.forEach(function(tab) { tab.classList.remove('active'); });
-            const btns = document.querySelectorAll('.tab-btn');
-            btns.forEach(function(btn) { btn.classList.remove('active'); });
-            document.getElementById('tab' + tabNumber).classList.add('active');
-            event.target.classList.add('active');
-        }
-
-        async function searchAddress() {
-            logMessage('SEARCH', 'Starting address search: ' + addressToSearch);
-
-            try {
-                const searchUrl = 'https://geo.malmo.se/api/search?q=' + encodeURIComponent(addressToSearch);
-                logMessage('API', 'Calling Malmö geo API');
-
-                const response = await fetch(searchUrl);
-                if (!response.ok) throw new Error('API returned status ' + response.status);
-
-                const results = await response.json();
-                logMessage('API', 'Response: ' + results.length + ' results');
-
-                if (results.length === 0) {
-                    logMessage('ERROR', 'No address found');
-                    document.getElementById('status-indicator').textContent = '❌ Address not found';
-                    return;
-                }
-
-                const result = results[0];
-                logMessage('PARSE', 'Result keys: ' + Object.keys(result).join(', '));
-
-                // Parse Malmö API response with WKT GEOM format
-                const name = result.NAMN || result.name || result.adress || 'Unknown';
-                let x, y;
-
-                // Extract from WKT POINT format: POINT(X Y)
-                if (result.GEOM) {
-                    const match = result.GEOM.match(/POINT\\s*\\(([^\\s]+)\\s+([^)]+)\\)/);
-                    if (match) {
-                        x = parseFloat(match[1]);
-                        y = parseFloat(match[2]);
-                        logMessage('PARSE', 'Extracted WKT: x=' + x + ', y=' + y);
-                    }
-                }
-
-                // Fallback to x, y properties
-                if (!x || !y) {
-                    x = result.x;
-                    y = result.y;
-                    if (x && y) logMessage('PARSE', 'Using x, y properties: x=' + x + ', y=' + y);
-                }
-
-                if (!x || !y || isNaN(x) || isNaN(y)) {
-                    logMessage('ERROR', 'Invalid coordinates: x=' + x + ', y=' + y);
-                    document.getElementById('status-indicator').textContent = '❌ Coordinates not valid';
-                    return;
-                }
-
-                logMessage('SUCCESS', 'Found: ' + name + ' (' + x + ', ' + y + ')');
-
-                const mapUrl = 'https://stadsatlas.malmo.se/stadsatlas/#center=' + x + ',' + y + '&zoom=15';
-                iframeElement.src = mapUrl;
-                document.getElementById('status-indicator').textContent = '✅ Map navigated to: ' + name;
-
-            } catch (error) {
-                logMessage('ERROR', error.message);
-                document.getElementById('status-indicator').textContent = '❌ Error: ' + error.message;
-            }
-        }
-
-        window.addEventListener('load', function() {
-            logMessage('READY', 'Interface loaded');
-        });
-    </script>
-</body>
-</html>
-"#);
     html
 }
 
+/// Open a single browser window with integrated tabbed interface
 fn open_browser_window(
     result: &&CorrelationResult,
     window_idx: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let address = &result.address;
+
+    // Create the complete tabbed HTML page
     let tabbed_page = create_tabbed_interface_page(address, result);
 
-    let temp_dir = env::temp_dir();
+    // Write to temporary file with unique name
+    let temp_dir = std::env::temp_dir();
     let filename = format!("amp_test_{}.html", window_idx);
     let temp_file = temp_dir.join(&filename);
 
@@ -885,6 +1021,7 @@ fn open_browser_window(
 
     let file_url = format!("file://{}", temp_file.display());
 
+    // Try to open window using different methods depending on OS
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("cmd")
@@ -916,7 +1053,7 @@ fn open_browser_window(
 fn run_benchmark(sample_size: usize, cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
     // Load data
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);;
     pb.set_message("Loading data for benchmarking...");
 
     let (addresses, zones) = amp_core::api::api_miljo_only()?;
@@ -1180,7 +1317,7 @@ async fn check_updates(checksum_file: &str) -> Result<(), Box<dyn std::error::Er
     );
 
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);;
     pb.set_message("Fetching remote data...");
 
     new_checksums.update_from_remote().await?;

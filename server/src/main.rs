@@ -356,7 +356,8 @@ fn run_correlation(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);  pb.set_message("Loading data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -388,7 +389,8 @@ fn run_correlation(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?  .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?
+            .progress_chars("█▓▒░ "),
     );
 
     // Correlate with miljödata
@@ -532,7 +534,8 @@ fn run_test_mode(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);  pb.set_message("Loading data for testing...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data for testing...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -556,7 +559,8 @@ fn run_test_mode(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?  .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?
+            .progress_chars("█▓▒░ "),
     );
 
     let miljo_results = correlate_dataset(&algorithm, &addresses, &miljodata, cutoff, &pb)?;
@@ -735,6 +739,8 @@ fn open_browser_windows(
 }
 
 /// Create an HTML page that will automatically interact with StadsAtlas
+#[deprecated]
+#[allow(dead_code)]
 fn create_stadsatlas_automation_page(address: &str) -> String {
     format!(
         r#"<!DOCTYPE html>
@@ -911,7 +917,8 @@ fn format_matches_html(result: &CorrelationResult) -> String {
 fn run_benchmark(sample_size: usize, cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
     // Load data
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);  pb.set_message("Loading data for benchmarking...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Loading data for benchmarking...");
 
     let (addresses, zones) = amp_core::api::api_miljo_only()?;
 
@@ -1174,7 +1181,8 @@ async fn check_updates(checksum_file: &str) -> Result<(), Box<dyn std::error::Er
     );
 
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);  pb.set_message("Fetching remote data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
+    pb.set_message("Fetching remote data...");
 
     new_checksums.update_from_remote().await?;
     pb.finish_with_message("✓ Data fetched");

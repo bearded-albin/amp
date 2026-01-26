@@ -1278,7 +1278,7 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
         updateDebugUI();
     </script>
 </body>
-</html>""",
+</html>"#,
         address,
         address,
         address,

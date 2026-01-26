@@ -257,6 +257,7 @@ body {
     border-radius: 4px;
     border-left: 3px solid #667eea;
     font-size: 14px;
+    word-break: break-word;
 }
 
 .match {

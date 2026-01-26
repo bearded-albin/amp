@@ -94,10 +94,12 @@ impl DataLoader {
 
         let coordinates = Self::extract_linestring_endpoints(&feature)?;
 
-        // Get info from 'value' or 'copyvalue' field
+        // Prioritize 'copy_value' for miljöparkering data
+        // Falls back to 'value' if copy_value is not available
         let info = props
-            .get("value")
+            .get("copy_value")
             .or_else(|| props.get("copyvalue"))
+            .or_else(|| props.get("value"))
             .and_then(|v| v.as_str())
             .unwrap_or("Unknown")
             .to_string();

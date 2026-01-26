@@ -9,9 +9,9 @@
         /* CRITICAL: Force explicit dimensions for Origo/OpenLayers rendering */
         /* These inline styles override any conflicting CSS and ensure map container has size */
         * {
-            margin: 0 !important;
-            padding: 0 !important;
-            box-sizing: border-box !important;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
         html {
             height: 100% !important;
@@ -24,25 +24,17 @@
             padding: 0 !important;
             display: flex !important;
             flex-direction: column !important;
+            overflow: hidden !important;
+        }
+        .header {
+            flex-shrink: 0;
+            padding: 10px 15px;
         }
         .map-section {
             height: 550px !important;
             min-height: 550px !important;
             width: 100% !important;
-            max-width: 100% !important;
             flex-shrink: 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        .map-container {
-            height: 100% !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            position: relative !important;
-            flex: 1 !important;
-            min-height: 0 !important;
             display: flex !important;
             flex-direction: column !important;
             margin: 0 !important;
@@ -50,35 +42,161 @@
         }
         .control-panel {
             flex-shrink: 0 !important;
+            padding: 10px 15px !important;
+            background: white;
+            border-bottom: 1px solid #ddd;
+            display: flex !important;
+            gap: 10px !important;
+            align-items: center !important;
+        }
+        .search-input {
+            flex: 1 !important;
+            padding: 8px 12px !important;
+            font-size: 14px !important;
+            border: 1px solid #ccc !important;
+            border-radius: 4px !important;
+        }
+        .control-button {
+            flex-shrink: 0 !important;
+            padding: 8px 16px !important;
+            background: #6366f1 !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+        }
+        .control-button:hover {
+            background: #4f46e5 !important;
+        }
+        .status-text {
+            flex-shrink: 0 !important;
+            font-size: 13px !important;
+            color: #666 !important;
+        }
+        .map-container {
+            height: 100% !important;
+            width: 100% !important;
+            position: relative !important;
+            flex: 1 !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+        .map-placeholder {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 100% !important;
+            background: #f5f5f5 !important;
+            color: #999 !important;
+            font-size: 16px !important;
         }
         .stadsatlas-iframe {
             width: 100% !important;
             height: 100% !important;
             border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
         .tab-container {
             flex: 1 !important;
             display: flex !important;
             flex-direction: column !important;
             width: 100% !important;
-            max-width: 100% !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+        }
+        .tab-buttons {
+            flex-shrink: 0 !important;
+            display: flex !important;
+            border-bottom: 1px solid #ddd !important;
+            background: white !important;
+        }
+        .tab-btn {
+            flex: 1 !important;
+            padding: 10px 15px !important;
+            border: none !important;
+            background: white !important;
+            color: #666 !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+            border-bottom: 3px solid transparent !important;
+        }
+        .tab-btn.active {
+            color: #333 !important;
+            border-bottom-color: #6366f1 !important;
+        }
+        .tab-content {
+            display: none !important;
+            flex: 1 !important;
+            overflow-y: auto !important;
+            padding: 15px !important;
+        }
+        .tab-content.active {
+            display: block !important;
+        }
+        .field {
+            margin-bottom: 15px !important;
+        }
+        .label {
+            font-weight: bold !important;
+            color: #333 !important;
+            margin-bottom: 5px !important;
+        }
+        .value {
+            padding: 8px 12px !important;
+            background: #f5f5f5 !important;
+            border-left: 3px solid #6366f1 !important;
+            font-family: monospace !important;
+            word-break: break-all !important;
+        }
+        h1 {
+            font-size: 18px !important;
+            margin-bottom: 15px !important;
+        }
+        h2 {
+            font-size: 16px !important;
+            margin-top: 20px !important;
+            margin-bottom: 10px !important;
+        }
+        .console-log {
+            background: #1e1e1e !important;
+            color: #d4d4d4 !important;
+            padding: 10px !important;
+            font-family: monospace !important;
+            font-size: 12px !important;
+            height: 200px !important;
+            overflow-y: auto !important;
+            border-radius: 4px !important;
+        }
+        .log-entry {
+            margin-bottom: 3px !important;
+            line-height: 1.4 !important;
+        }
+        .log-timestamp {
+            color: #858585 !important;
         }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>📍 AMP Correlation Testing Interface</h1>
-        <div class="address">{ADDRESS}</div>
+        <div class="address">Address: <strong>{ADDRESS}</strong></div>
     </div>
     
     <!-- Map Container - Always visible at top -->
     <div class="map-section">
         <div class="control-panel">
-            <button class="control-button" onclick="searchAddress()">🔍 Search Address & Load Map</button>
-            <span id="status-indicator" class="status-text">Ready to search</span>
+            <input type="text" id="address-input" class="search-input" placeholder="Enter address to search..." value="{ADDRESS}">
+            <button class="control-button" onclick="searchAddress()">🔍 Load Map</button>
+            <span id="status-indicator" class="status-text">Ready</span>
         </div>
         <div id="map-container" class="map-container">
-            <div class="map-placeholder">Map will load here after search</div>
+            <div class="map-placeholder">Map will load here</div>
             <iframe id="stadsatlas-iframe" class="stadsatlas-iframe" src="" frameborder="0" style="display:none;"></iframe>
         </div>
     </div>
@@ -93,40 +211,43 @@
         
         <div id="tab1" class="tab-content">
             <h1>📋 Address Verification Instructions</h1>
-            <div class="instruction">✓ Follow these steps to verify the address</div>
-            <div class="address-display">{ADDRESS}</div>
-            <div class="steps">
-                <div class="step"><strong>Copy the address</strong> from the <strong>Data tab</strong> (the "Address" field shows the correlation result).</div>
-                <div class="step"><strong>Paste the address</strong> into the search box at the top and click <strong>"Search Address & Load Map"</strong> or press Enter.</div>
-                <div class="step">The Malmö geo API will find the coordinates and display the map above, centered on the location with a blue pin marker.</div>
-                <div class="step">Once the map loads, verify that the location is correct by checking nearby street names and landmarks on the map.</div>
-                <div class="step">The <strong>Miljöparkering layer</strong> should be automatically activated. You can toggle other layers using the Layers panel (hamburger menu) on the right side of the map.</div>
-                <div class="step">Verify the parking zone information displayed on the map matches the correlation data shown in the <strong>Data tab</strong> under "Matched Zones".</div>
+            <p>The address from the correlation result is already filled in the search box at the top. Follow these steps:</p>
+            <ol style="margin-left: 20px; margin-bottom: 15px;">
+                <li>Click <strong>"Load Map"</strong> to search for the address and display the map.</li>
+                <li>The Malmö geo API will find the coordinates and center the map on that location.</li>
+                <li>A blue pin marker will appear at the exact coordinates.</li>
+                <li>Verify the location is correct by checking nearby streets and landmarks.</li>
+                <li>The <strong>Miljöparkering layer</strong> should be automatically activated showing parking zones.</li>
+                <li>Compare the map view with the correlation data shown in the <strong>Data tab</strong> under "Matched Zones".</li>
+            </ol>
+            <div style="background: #f0f4ff; padding: 10px; border-left: 3px solid #6366f1; border-radius: 4px;">
+                <strong>💡 How it works:</strong> The search calls Malmö's geo API which returns coordinates in WKT POINT format. These are sent to StadsAtlas to display the map centered on that location. The miljödata layer shows environmental zones and parking information.
             </div>
-            <div class="note">💡 <strong>How it works:</strong> The search calls Malmö's geo API which returns coordinates in WKT POINT format. These coordinates are sent directly to StadsAtlas to display the map with a pin marker. The miljödata layer shows environmental zones and parking restrictions.</div>
         </div>
         
         <div id="tab2" class="tab-content active">
             <h1>📊 Correlation Result Data</h1>
             <div class="field">
-                <div class="label">Address</div>
+                <div class="label">📍 Address</div>
                 <div class="value">{RESULT_ADDRESS}</div>
             </div>
             <div class="field">
-                <div class="label">Postal Code</div>
+                <div class="label">📮 Postal Code</div>
                 <div class="value">{RESULT_POSTNUMMER}</div>
             </div>
             <div class="field">
-                <div class="label">Dataset Source</div>
+                <div class="label">📂 Dataset Source</div>
                 <div class="value">{RESULT_SOURCE}</div>
             </div>
-            <h2>Matched Zones</h2>
+            <h2>🎯 Matched Zones</h2>
             <div id="matches-container">{RESULT_MATCHES}</div>
         </div>
         
         <div id="tab3" class="tab-content">
-            <h1>🐛 Debug Console - Address Search Logs</h1>
-            <div class="note"><strong>Status:</strong> All address searches are logged below. Also check browser DevTools Console (F12) for extended logs marked with <code>[AMP]</code>.</div>
+            <h1>🐛 Debug Console</h1>
+            <div style="background: #fff3cd; padding: 10px; border-left: 3px solid #ff9800; border-radius: 4px; margin-bottom: 15px;">
+                <strong>Status:</strong> All search logs appear below. Check browser DevTools Console (F12) for extended logs marked with <code>[AMP]</code>.
+            </div>
             <div class="field">
                 <div class="label">Search Status</div>
                 <div class="value" id="search-status">Ready to search...</div>

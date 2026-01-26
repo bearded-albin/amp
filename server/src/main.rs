@@ -699,7 +699,6 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     let matches_html = format_matches_html(result);
     let address_escaped = address.replace('"', "&quot;");
 
-    // Build HTML with string concatenation to avoid format string issues with JavaScript
     let mut html = String::new();
     html.push_str("<!DOCTYPE html>\n<html>\n<head>\n");
     html.push_str(&format!(
@@ -861,16 +860,16 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("        const logs = [];\n");
     html.push_str(&("        const addressToSearch = '".to_owned() + &address_escaped + "';\n"));
     html.push_str("        const iframeElement = document.getElementById('stadsatlas-iframe');\n");
-    html.push('\\n');
+    html.push_str("\n");
     html.push_str("        function logMessage(category, message, type = 'info') {\n");
     html.push_str("            const timestamp = new Date().toLocaleTimeString();\n");
     html.push_str("            const logEntry = {timestamp, category, message, type};\n");
     html.push_str("            logs.push(logEntry);\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str(
         "            console.log('[AMP] [' + timestamp + '] [' + category + '] ' + message);\n",
     );
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("            const logsDiv = document.getElementById('message-logs');\n");
     html.push_str("            if (logsDiv) {\n");
     html.push_str("                const entry = document.createElement('div');\n");
@@ -880,14 +879,14 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("                logsDiv.scrollTop = logsDiv.scrollHeight;\n");
     html.push_str("            }\n");
     html.push_str("        }\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("        function updateStatus(status, statusId = 'search-status') {\n");
     html.push_str("            const statusDiv = document.getElementById(statusId);\n");
     html.push_str("            if (statusDiv) {\n");
     html.push_str("                statusDiv.textContent = status;\n");
     html.push_str("            }\n");
     html.push_str("        }\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("        function switchTab(event, tabNumber) {\n");
     html.push_str("            const tabs = document.querySelectorAll('.tab-content');\n");
     html.push_str("            tabs.forEach(function(tab) { tab.classList.remove('active'); });\n");
@@ -898,61 +897,61 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     );
     html.push_str("            event.target.classList.add('active');\n");
     html.push_str("        }\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("        async function searchAddress() {\n");
     html.push_str("            logMessage('SEARCH', 'Starting address search for: ' + addressToSearch, 'info');\n");
     html.push_str("            updateStatus('⏳ Searching for: ' + addressToSearch);\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("            try {\n");
     html.push_str("                // Call Malmö's address search API\n");
     html.push_str("                const searchUrl = 'https://geo.malmo.se/api/search?q=' + encodeURIComponent(addressToSearch);\n");
     html.push_str("                logMessage('API', 'Calling: ' + searchUrl.substring(0, 60) + '...', 'info');\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("                const response = await fetch(searchUrl);\n");
     html.push_str("                if (!response.ok) {\n");
     html.push_str("                    throw new Error('API returned status ' + response.status);\n");
     html.push_str("                }\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("                const results = await response.json();\n");
     html.push_str("                logMessage('API', 'Response received with ' + results.length + ' results', 'success');\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("                if (results.length === 0) {\n");
     html.push_str("                    logMessage('RESULT', 'No address found matching: ' + addressToSearch, 'warning');\n");
     html.push_str("                    updateStatus('❌ Address not found in Malmö');\n");
     html.push_str("                    return;\n");
     html.push_str("                }\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("                const result = results[0];\n");
     html.push_str("                logMessage('RESULT', 'Found: ' + result.name + ' at coordinates (' + result.x + ', ' + result.y + ')', 'success');\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("                // Build StadsAtlas URL with coordinates\n");
     html.push_str("                const mapUrl = 'https://stadsatlas.malmo.se/stadsatlas/#center=' + result.x + ',' + result.y + '&zoom=15';\n");
     html.push_str("                logMessage('MAP', 'Navigating to: ' + mapUrl.substring(0, 80) + '...', 'info');\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("                // Navigate iframe\n");
     html.push_str("                iframeElement.src = mapUrl;\n");
     html.push_str("                logMessage('MAP', 'iframe navigated successfully', 'success');\n");
     html.push_str("                updateStatus('✅ Map navigated to: ' + result.name);\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("            } catch (error) {\n");
     html.push_str("                logMessage('ERROR', 'Search failed: ' + error.message, 'error');\n");
     html.push_str("                updateStatus('❌ Error: ' + error.message);\n");
     html.push_str("            }\n");
     html.push_str("        }\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("        // Track iframe loading state\n");
     html.push_str("        iframeElement.addEventListener('load', function() {\n");
     html.push_str(
         "            logMessage('INIT', 'StadsAtlas iframe loaded and ready', 'success');\n",
     );
     html.push_str("        });\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("        iframeElement.addEventListener('error', function() {\n");
     html.push_str(
         "            logMessage('ERROR', 'Failed to load StadsAtlas iframe', 'error');\n",
     );
     html.push_str("        });\n");
-    html.push('\n');
+    html.push_str("\n");
     html.push_str("        // Initial status\n");
     html.push_str("        window.addEventListener('load', function() {\n");
     html.push_str("            logMessage('READY', 'AMP Testing Interface loaded. Ready to search address.', 'info');\n");

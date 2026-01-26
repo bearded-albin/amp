@@ -600,7 +600,7 @@ fn run_test_mode(
 
     println!("\n🌐 Opening {} browser windows...", actual_windows);
     println!("   Each window has 4 integrated tabs in a single page:");
-    println!("   - Tab 1: Live StadsAtlas with working address navigation");
+    println!("   - Tab 1: Address search with new tab StadsAtlas navigation");
     println!("   - Tab 2: Step-by-step instructions");
     println!("   - Tab 3: Correlation data visualization");
     println!("   - Tab 4: Debug console with address search logs\n");
@@ -691,7 +691,7 @@ fn format_matches_html(result: &CorrelationResult) -> String {
 }
 
 /// Create a single HTML page with 4 integrated tabs
-/// Tab 1: StadsAtlas Live Iframe with working address search
+/// Tab 1: Address search with new tab StadsAtlas navigation
 /// Tab 2: Instructions
 /// Tab 3: Correlation Data
 /// Tab 4: Debug Console
@@ -729,10 +729,6 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     );
     html.push_str("        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }\n");
     html.push_str("        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }\n");
-    html.push_str("        #tab1 { padding: 0; display: flex; flex-direction: column; }\n");
-    html.push_str("        .iframe-wrapper { display: flex; flex-direction: column; flex: 1; height: 100%; }\n");
-    html.push_str("        .iframe-container { flex: 1; display: flex; flex-direction: column; min-height: 600px; }\n");
-    html.push_str("        iframe { width: 100%; height: 100%; border: none; flex: 1; }\n");
     html.push_str("        .instruction { background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 15px 0; border-left: 4px solid #4caf50; }\n");
     html.push_str("        .steps { counter-reset: step-counter; margin: 20px 0; }\n");
     html.push_str("        .step { counter-increment: step-counter; margin: 15px 0; padding: 15px; background: #f9f9f9; border-radius: 4px; border-left: 3px solid #667eea; }\n");
@@ -760,8 +756,6 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("        .control-button { background: #667eea; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 10px 10px 0; }\n");
     html.push_str("        .control-button:hover { background: #764ba2; }\n");
     html.push_str("        .control-panel { background: #f5f5f5; padding: 15px; border-radius: 4px; margin-bottom: 15px; flex-shrink: 0; }\n");
-    html.push_str("        .control-button.retry { background: #ff9800; }\n");
-    html.push_str("        .control-button.retry:hover { background: #e68900; }\n");
     html.push_str("    </style>\n");
     html.push_str("</head>\n");
     html.push_str("<body>\n");
@@ -774,7 +768,7 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("    </div>\n");
     html.push_str("    <div class=\"tab-container\">\n");
     html.push_str("        <div class=\"tab-buttons\">\n");
-    html.push_str("            <button class=\"tab-btn active\" onclick=\"switchTab(event, 1)\">🗺️ StadsAtlas</button>\n");
+    html.push_str("            <button class=\"tab-btn active\" onclick=\"switchTab(event, 1)\">🔍 Search</button>\n");
     html.push_str("            <button class=\"tab-btn\" onclick=\"switchTab(event, 2)\">📋 Instructions</button>\n");
     html.push_str(
         "            <button class=\"tab-btn\" onclick=\"switchTab(event, 3)\">📊 Data</button>\n",
@@ -785,31 +779,34 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("        </div>\n");
     html.push_str("        <div id=\"tab1\" class=\"tab-content active\">\n");
     html.push_str("            <div class=\"control-panel\">\n");
-    html.push_str("                <button class=\"control-button\" onclick=\"searchAddress()\">🔍 Search Address</button>\n");
+    html.push_str("                <button class=\"control-button\" onclick=\"searchAddress()\">🔍 Search Address & Open Map</button>\n");
     html.push_str("                <span id=\"status-indicator\" style=\"color: #666; font-size: 14px; margin-left: 20px;\">Ready</span>\n");
     html.push_str("            </div>\n");
-    html.push_str("            <div class=\"iframe-wrapper\">\n");
-    html.push_str("                <div class=\"iframe-container\">\n");
-    html.push_str("                    <iframe id=\"stadsatlas-iframe\" src=\"https://stadsatlas.malmo.se/stadsatlas/\" title=\"StadsAtlas Map\"></iframe>\n");
-    html.push_str("                </div>\n");
+    html.push_str("            <div style=\"padding: 20px; background: #f9f9f9; border-radius: 4px; margin-top: 20px;\">\n");
+    html.push_str("                <h3>🔍 Address Search</h3>\n");
+    html.push_str("                <p style=\"color: #666; margin-top: 10px; line-height: 1.6;\">\n");
+    html.push_str("                    Click the button above to search for this address using Malmö's geo API.\n");
+    html.push_str("                    When found, a new tab will open with StadsAtlas showing the location\n");
+    html.push_str("                    centered at the exact coordinates. You can then verify the parking\n");
+    html.push_str("                    zones and other location details on the map.\n");
+    html.push_str("                </p>\n");
     html.push_str("            </div>\n");
     html.push_str("        </div>\n");
     html.push_str("        <div id=\"tab2\" class=\"tab-content\">\n");
-    html.push_str("            <h1>📋 StadsAtlas Verification Instructions</h1>\n");
-    html.push_str("            <div class=\"instruction\">✓ Follow these steps to verify the address in StadsAtlas (Tab 1)</div>\n");
+    html.push_str("            <h1>📋 Address Verification Instructions</h1>\n");
+    html.push_str("            <div class=\"instruction\">✓ Follow these steps to verify the address</div>\n");
     html.push_str(&format!(
         "            <div class=\"address-display\">{}</div>\n",
         address
     ));
     html.push_str("            <div class=\"steps\">\n");
-    html.push_str("                <div class=\"step\"><strong>Click the \"Search Address\" button</strong> at the top of the StadsAtlas tab. The interface will search for your address using Malmö's geo API.</div>\n");
-    html.push_str("                <div class=\"step\">The map will automatically navigate to the address coordinates. Watch as the map centers on the location.</div>\n");
-    html.push_str("                <div class=\"step\">Look for the address marker or highlighted location on the map.</div>\n");
-    html.push_str("                <div class=\"step\">Check the <strong>Layers panel</strong> (on the right side) and verify layers are visible, especially <strong>Miljöparkering</strong> or <strong>Parkering</strong> layers if applicable.</div>\n");
-    html.push_str("                <div class=\"step\">Verify the parking zone information displayed on the map matches the expected correlation data shown in the Data tab.</div>\n");
+    html.push_str("                <div class=\"step\"><strong>Click \"Search Address & Open Map\"</strong> on the Search tab. This will call Malmö's geo API and open StadsAtlas in a new browser tab centered on the found coordinates.</div>\n");
+    html.push_str("                <div class=\"step\">A new tab will open automatically. The map will be centered at the exact address coordinates.</div>\n");
+    html.push_str("                <div class=\"step\">Once the map loads, verify that the location is correct by checking nearby street names and landmarks.</div>\n");
+    html.push_str("                <div class=\"step\">Check the <strong>Layers panel</strong> (on the right side of StadsAtlas) and enable <strong>Miljöparkering</strong> or <strong>Parkeringsavgifter</strong> layers if needed.</div>\n");
+    html.push_str("                <div class=\"step\">Verify the parking zone information displayed on the map matches the correlation data shown in the Data tab of this window.</div>\n");
     html.push_str("            </div>\n");
-    html.push_str("            <div class=\"note\">💡 <strong>How it works:</strong> We use Malmö's official address search API (geo.malmo.se/api/search) to find coordinates, then navigate StadsAtlas to those coordinates. This is more reliable than injection methods because we're using standard map navigation.</div>\n");
-    html.push_str("            <div class=\"note\">✅ <strong>Why this works:</strong> The search happens in the parent page (no sandbox), and we just tell the map to navigate to the found coordinates using URL parameters. Simple and reliable!</div>\n");
+    html.push_str("            <div class=\"note\">💡 <strong>How it works:</strong> The API returns coordinates in WKT POINT format (POINT(X Y)) which we parse and pass directly to StadsAtlas via URL. When the page loads, it automatically navigates to those coordinates.</div>\n");
     html.push_str("        </div>\n");
     html.push_str("        <div id=\"tab3\" class=\"tab-content\">\n");
     html.push_str("            <h1>📊 Correlation Result Data</h1>\n");
@@ -846,12 +843,6 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
         "                <div class=\"value\" id=\"search-status\">Ready to search...</div>\n",
     );
     html.push_str("            </div>\n");
-    html.push_str("            <div class=\"field\">\n");
-    html.push_str("                <div class=\"label\">Search Results</div>\n");
-    html.push_str(
-        "                <div class=\"value\" id=\"search-results\">No searches yet</div>\n",
-    );
-    html.push_str("            </div>\n");
     html.push_str(
         "            <div class=\"label\" style=\"margin-top: 20px;\">Message Logs</div>\n",
     );
@@ -861,7 +852,6 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("    <script>\n");
     html.push_str("        const logs = [];\n");
     html.push_str(&("        const addressToSearch = '".to_owned() + &address_escaped + "';\n"));
-    html.push_str("        const iframeElement = document.getElementById('stadsatlas-iframe');\n");
     html.push('\n');
     html.push_str("        function logMessage(category, message, type = 'info') {\n");
     html.push_str("            const timestamp = new Date().toLocaleTimeString();\n");
@@ -905,7 +895,6 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("            updateStatus('⏳ Searching for: ' + addressToSearch);\n");
     html.push('\n');
     html.push_str("            try {\n");
-    html.push_str("                // Call Malmö's address search API\n");
     html.push_str("                const searchUrl = 'https://geo.malmo.se/api/search?q=' + encodeURIComponent(addressToSearch);\n");
     html.push_str("                logMessage('API', 'Calling: ' + searchUrl.substring(0, 60) + '...', 'info');\n");
     html.push('\n');
@@ -929,9 +918,7 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("                logMessage('PARSE', 'Result keys: ' + Object.keys(result).join(', '), 'info');\n");
     html.push_str("                \n");
     html.push_str("                // Parse Malmö API response with WKT GEOM format\n");
-    html.push_str(
-        "                const name = result.NAMN || result.name || result.adress || 'Unknown';\n",
-    );
+    html.push_str("                const name = result.NAMN || result.name || result.adress || 'Unknown';\n");
     html.push_str("                let x, y;\n");
     html.push_str("                \n");
     html.push_str("                // Extract from WKT POINT format: POINT(X Y)\n");
@@ -961,16 +948,14 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("                \n");
     html.push_str("                logMessage('RESULT', 'Found: ' + name + ' at (' + x + ', ' + y + ')', 'success');\n");
     html.push('\n');
-    html.push_str("                // Build StadsAtlas URL with coordinates\n");
-    html.push_str("                const mapUrl = 'https://stadsatlas.malmo.se/stadsatlas/#center=' + x + ',' + y + '&zoom=15';\n");
-    html.push_str("                logMessage('MAP', 'Navigating to: ' + mapUrl.substring(0, 80) + '...', 'info');\n");
+    html.push_str("                // Build StadsAtlas URL with coordinates and OPEN IN NEW TAB\n");
+    html.push_str("                const mapUrl = 'https://stadsatlas.malmo.se/stadsatlas/#center=' + x + ',' + y + '&zoom=18';\n");
+    html.push_str("                logMessage('MAP', 'Opening new tab: ' + mapUrl.substring(0, 80) + '...', 'info');\n");
     html.push('\n');
-    html.push_str("                // Navigate iframe\n");
-    html.push_str("                iframeElement.src = mapUrl;\n");
-    html.push_str(
-        "                logMessage('MAP', 'iframe navigated successfully', 'success');\n",
-    );
-    html.push_str("                updateStatus('✅ Map navigated to: ' + name);\n");
+    html.push_str("                // Open in new tab instead of iframe\n");
+    html.push_str("                window.open(mapUrl, '_blank');\n");
+    html.push_str("                logMessage('MAP', 'New tab opened successfully', 'success');\n");
+    html.push_str("                updateStatus('✅ Opened map in new tab: ' + name);\n");
     html.push('\n');
     html.push_str("            } catch (error) {\n");
     html.push_str(
@@ -979,19 +964,6 @@ fn create_tabbed_interface_page(address: &str, result: &CorrelationResult) -> St
     html.push_str("                updateStatus('❌ Error: ' + error.message);\n");
     html.push_str("            }\n");
     html.push_str("        }\n");
-    html.push('\n');
-    html.push_str("        // Track iframe loading state\n");
-    html.push_str("        iframeElement.addEventListener('load', function() {\n");
-    html.push_str(
-        "            logMessage('INIT', 'StadsAtlas iframe loaded and ready', 'success');\n",
-    );
-    html.push_str("        });\n");
-    html.push('\n');
-    html.push_str("        iframeElement.addEventListener('error', function() {\n");
-    html.push_str(
-        "            logMessage('ERROR', 'Failed to load StadsAtlas iframe', 'error');\n",
-    );
-    html.push_str("        });\n");
     html.push('\n');
     html.push_str("        // Initial status\n");
     html.push_str("        window.addEventListener('load', function() {\n");

@@ -11,13 +11,15 @@ use ratatui::{
 
 use crate::tui::Tui;
 use crate::classification;
-use amp_core::benchmark::BenchmarkResult;
 use amp_core::correlation_algorithms::{
     CorrelationAlgo, DistanceBasedAlgo, GridNearestAlgo, KDTreeSpatialAlgo,
     OverlappingChunksAlgo, RTreeSpatialAlgo, RaycastingAlgo,
 };
 use amp_core::structs::{AdressClean, CorrelationResult, MiljoeDataClean};
 use amp_core::api::api;
+
+/// Type alias for correlation result tuples: (address, distance_meters, zone_info)
+type CorrelationTuple = (String, f64, String);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AlgorithmChoice {
@@ -89,10 +91,8 @@ pub struct AppState {
 
     pub is_running: bool,
     pub progress: f64,
-    pub status: String,
 
     pub correlation_results: Vec<CorrelationResult>,
-    pub benchmark_results: Vec<BenchmarkResult>,
 
     pub last_action: String,
 }
@@ -106,9 +106,7 @@ impl Default for AppState {
             cutoff: 20.0,
             is_running: false,
             progress: 0.0,
-            status: "Ready".to_string(),
             correlation_results: Vec::new(),
-            benchmark_results: Vec::new(),
             last_action: "Launch amp-server and use the TUI to run everything".to_string(),
         }
     }
@@ -449,7 +447,7 @@ impl App {
         cutoff: f64,
         counter: &mut usize,
         total: usize,
-    ) -> Result<Vec<(String, f64, String)>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<CorrelationTuple>, Box<dyn std::error::Error>> {
         let mut results = Vec::new();
 
         match algorithm {
@@ -539,8 +537,8 @@ impl App {
     fn merge_results(
         &self,
         addresses: &[AdressClean],
-        miljo_results: &[(String, f64, String)],
-        parkering_results: &[(String, f64, String)],
+        miljo_results: &[CorrelationTuple],
+        parkering_results: &[CorrelationTuple],
     ) -> Vec<CorrelationResult> {
         use std::collections::HashMap;
 

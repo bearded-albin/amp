@@ -74,7 +74,7 @@
 </head>
 <body>
     <div id="map"></div>
-    <div class="map-info" id="mapInfo"🗺️ Loading map...
+    <div class="map-info" id="mapInfo">🗺️ Loading map...
     </div>
     <div class="attribution">© Malmö stad</div>
     
@@ -133,17 +133,26 @@
         try {
             console.log('🔧 Creating map with OpenLayers 7.x...');
             
-            // Create XYZ tile layer for background
-            const backgroundLayer = new ol.layer.Tile({
+            // Create ArcGIS REST Image layer for background (using export endpoint)
+            const backgroundLayer = new ol.layer.Image({
                 name: 'bakgrundskarta',
                 title: 'Bakgrundskarta',
-                source: new ol.source.XYZ({
-                    url: 'https://gis.malmo.se/arcgis/rest/services/baskartor/Bakgrundskarta_nedtonad_3008_text/MapServer/tile/{z}/{y}/{x}',
-                    tileGrid: new ol.tilegrid.TileGrid({
-                        resolutions: resolutions,
-                        origin: [-399.9999999999999, 9006799.254740989],
-                        extent: [-1678505.1838360203, 4665380, 2431912.7361639794, 8775797.92]
-                    })
+                source: new ol.source.ImageArcGISRest({
+                    url: 'https://gis.malmo.se/arcgis/rest/services/baskartor/Bakgrundskarta_nedtonad_3008_text/MapServer',
+                    params: {
+                        'FORMAT': 'png24',
+                        'TRANSPARENT': 'false'
+                    },
+                    imageLoadFunction: (image, src) => {
+                        image.getImage().onload = () => {
+                            console.log('✅ Background map tile loaded');
+                        };
+                        image.getImage().onerror = (err) => {
+                            console.error('❌ Background map tile failed:', err);
+                        };
+                        image.getImage().src = src;
+                    },
+                    ratio: 1
                 }),
                 visible: true,
                 zIndex: 10
@@ -162,12 +171,11 @@
                         'VERSION': '1.1.1'
                     },
                     imageLoadFunction: (image, src) => {
-                        // Handle CORS by checking if image loads
                         image.getImage().onload = () => {
                             console.log('✅ Miljödata WMS tile loaded');
                         };
-                        image.getImage().onerror = () => {
-                            console.warn('⚠️ Miljödata WMS tile failed, may be CORS issue');
+                        image.getImage().onerror = (err) => {
+                            console.warn('⚠️ Miljödata WMS tile failed (may be no data in this area):', err);
                         };
                         image.getImage().src = src;
                     }
@@ -181,7 +189,7 @@
             const vectorSource = new ol.source.Vector();
             const vectorLayer = new ol.layer.Vector({
                 name: 'address-pin',
-                title: 'Adressmarkörer',
+                title: 'Adressmarkører',
                 source: vectorSource,
                 style: new ol.style.Style({
                     image: new ol.style.Icon({
@@ -240,7 +248,7 @@
             });
             
             console.log('✅ Map created successfully');
-            console.log('✅ Background layer added');
+            console.log('✅ Background layer added (ArcGIS REST export)');
             console.log('✅ Miljödata WMS layer added');
             console.log('✅ Address pin added at [' + mapCenterX + ',' + mapCenterY + ']');
             

@@ -13,7 +13,7 @@ use ratatui::{
     prelude::*,
     style::Stylize,
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Row, Table, Tabs, Wrap},
+    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Row, Table, Tabs, Wrap, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 
 use crate::classification;
@@ -161,21 +161,19 @@ type CorrelationTuple = (String, f64, String);
 
 /// Per-view state
 pub struct DashboardState {
-    #[allow(dead_code)]
     scroll_offset: u16,
 }
 
 pub struct CorrelateState {
     running: bool,
     progress: f64,
-    #[allow(dead_code)]
     status_msg: String,
     details: Vec<String>,
+    details_scroll: usize,
 }
 
 pub struct ResultsState {
     results: Vec<CorrelationResult>,
-    #[allow(dead_code)]
     scroll_offset: usize,
     #[allow(dead_code)]
     selected_idx: Option<usize>,
@@ -185,11 +183,13 @@ pub struct BenchmarkState {
     running: bool,
     results: Vec<(String, Duration, Duration)>,
     output: Vec<String>,
+    output_scroll: usize,
 }
 
 pub struct UpdatesState {
     last_check: Option<Instant>,
     status: String,
+    status_scroll: usize,
 }
 
 /// Global application state
@@ -201,7 +201,6 @@ pub struct AppState {
     pub theme: ColorTheme,
 
     // Per-view states
-    #[allow(dead_code)]
     dashboard: DashboardState,
     correlate: CorrelateState,
     results: ResultsState,
@@ -223,6 +222,7 @@ impl Default for AppState {
                 progress: 0.0,
                 status_msg: "Ready. Press [Enter] to start.".to_string(),
                 details: Vec::new(),
+                details_scroll: 0,
             },
             results: ResultsState {
                 results: Vec::new(),
@@ -233,10 +233,12 @@ impl Default for AppState {
                 running: false,
                 results: Vec::new(),
                 output: vec!["Benchmarks available: KD-Tree, R-Tree, Grid, Distance, Raycasting, Chunks".to_string()],
+                output_scroll: 0,
             },
             updates: UpdatesState {
                 last_check: None,
                 status: "Ready. Press [Enter] to check.".to_string(),
+                status_scroll: 0,
             },
         }
     }
@@ -323,11 +325,12 @@ impl App {
 
         let tabs = Tabs::new(titles)
             .select(current_idx)
-            .style(Style::default().fg(self.state.theme.alt_text_color()))
+            .style(Style::default().fg(self.state.theme.text_color()))
             .highlight_style(
                 Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                    .fg(Color::Black)
+                    .bg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )
             .divider("│");
 
@@ -351,7 +354,7 @@ impl App {
             .border_type(ratatui::widgets::BorderType::Rounded)
             .title(" 📊 AMP Dashboard ")
             .title_alignment(Alignment::Center)
-            .style(theme.header_style());
+            .style(Style::default().fg(Color::Cyan));
 
         let inner = block.inner(area);
         f.render_widget(block, area);
@@ -366,7 +369,7 @@ impl App {
 
         // Title
         lines.push(Line::from(vec![
-            Span::styled("Address Parking Mapper", Style::default().fg(theme.text_color()).add_modifier(Modifier::BOLD)),
+            Span::styled("Address Parking Mapper", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         ]));
 
         // Description
@@ -380,17 +383,17 @@ impl App {
 
         // Stats section
         lines.push(Line::from(vec![
-            Span::styled("📋 Quick Stats:", Style::default().fg(theme.text_color()).add_modifier(Modifier::BOLD)),
+            Span::styled("📋 Quick Stats:", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         ]));
 
         // Algorithm line
         lines.push(Line::from(vec![
-            Span::raw(format!("  • Algorithm: {}", self.state.current_algorithm.name())).fg(theme.text_color()),
+            Span::raw(format!("  • Algorithm: {}", self.state.current_algorithm.name())).fg(Color::White),
         ]));
 
         // Cutoff line
         lines.push(Line::from(vec![
-            Span::raw(format!("  • Cutoff: {:.1}m", self.state.cutoff_distance)).fg(theme.text_color()),
+            Span::raw(format!("  • Cutoff: {:.1}m", self.state.cutoff_distance)).fg(Color::White),
         ]));
 
         // Spacing
@@ -398,11 +401,11 @@ impl App {
 
         // Navigation section
         lines.push(Line::from(vec![
-            Span::styled("⌨️  Navigation:", Style::default().fg(theme.text_color()).add_modifier(Modifier::BOLD)),
+            Span::styled("⌨️  Navigation:", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         ]));
 
         lines.push(Line::from(vec![
-            Span::raw("  [1-5] Jump | [←→] Tab | [a] Algorithm | [+/-] Distance").fg(theme.text_color()),
+            Span::raw("  [1-5] Jump | [←→] Tab | [a] Algorithm | [+/-] Distance").fg(Color::White),
         ]));
 
         // Spacing
@@ -419,7 +422,7 @@ impl App {
         let paragraph = Paragraph::new(lines)
             .alignment(Alignment::Left)
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(theme.text_color()));
+            .style(Style::default().fg(Color::White));
 
         f.render_widget(paragraph, inner);
     }
@@ -446,21 +449,22 @@ impl App {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(ratatui::widgets::BorderType::Rounded)
-                    .title(" Progress "),
+                    .title(" Progress ")
+                    .style(Style::default().fg(Color::Cyan)),
             )
-            .gauge_style(Style::default().fg(Color::Cyan))
+            .gauge_style(Style::default().fg(Color::Green))
             .percent((self.state.correlate.progress * 100.0) as u16)
             .label(format!("{:.0}%", self.state.correlate.progress * 100.0));
 
         f.render_widget(gauge, chunks[1]);
 
-        // Details list
+        // Details list with scrollbar
         let items: Vec<ListItem> = self
             .state
             .correlate
             .details
             .iter()
-            .map(|line| ListItem::new(line.as_str()).style(Style::default().fg(theme.text_color())))
+            .map(|line| ListItem::new(line.as_str()).style(Style::default().fg(Color::White)))
             .collect();
 
         let list = List::new(items).block(
@@ -468,10 +472,20 @@ impl App {
                 .borders(Borders::ALL)
                 .border_type(ratatui::widgets::BorderType::Rounded)
                 .title(" Details ")
-                .title_alignment(Alignment::Left),
+                .title_alignment(Alignment::Left)
+                .style(Style::default().fg(Color::Cyan)),
         );
 
         f.render_widget(list, chunks[2]);
+        
+        // Render scrollbar for details
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"));
+        let mut scroll_state = ScrollbarState::new(self.state.correlate.details.len())
+            .position(self.state.correlate.details_scroll);
+        f.render_stateful_widget(scrollbar, chunks[2], &mut scroll_state);
     }
 
     fn render_algorithm_selector(&self, f: &mut Frame, area: Rect) {
@@ -480,7 +494,7 @@ impl App {
             .borders(Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
             .title(" ⚙️  Configuration ")
-            .style(theme.header_style());
+            .style(Style::default().fg(Color::Cyan));
 
         let inner = block.inner(area);
         f.render_widget(block, area);
@@ -492,11 +506,11 @@ impl App {
                 let is_selected = *algo == self.state.current_algorithm;
                 let style = if is_selected {
                     Style::default()
-                        .fg(theme.bg_color())
+                        .fg(Color::Black)
                         .bg(Color::Cyan)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(theme.text_color())
+                    Style::default().fg(Color::White)
                 };
 
                 let check = if is_selected { "✓" } else { " " };
@@ -515,7 +529,7 @@ impl App {
                 Constraint::Percentage(65),
             ],
         )
-        .style(Style::default().fg(theme.text_color()));
+        .style(Style::default().fg(Color::White));
 
         f.render_widget(table, inner);
     }
@@ -529,24 +543,24 @@ impl App {
                 .borders(Borders::ALL)
                 .border_type(ratatui::widgets::BorderType::Rounded)
                 .title(" 📊 Results (0 found) ")
-                .style(Style::default().fg(theme.alt_text_color()));
+                .style(Style::default().fg(Color::Yellow));
 
             let para = Paragraph::new("No results. Run correlation first (Tab 2)")
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(theme.text_color()))
+                .style(Style::default().fg(Color::White))
                 .block(block);
 
             f.render_widget(para, area);
             return;
         }
 
-        // Results table
+        // Results table with scrollbar
         let rows: Vec<Row> = self
             .state
             .results
             .results
             .iter()
-            .take(100) // Allow more rows on vertical screens
+            .take(100)
             .map(|result| {
                 Row::new(vec![
                     result.address.clone(),
@@ -559,7 +573,7 @@ impl App {
                         result.parkering_match.as_ref().map(|(d, _)| d).copied().unwrap_or(999.0)
                     ),
                 ])
-                .style(Style::default().fg(theme.text_color()))
+                .style(Style::default().fg(Color::White))
             })
             .collect();
 
@@ -573,17 +587,27 @@ impl App {
         )
         .header(
             Row::new(vec!["Address", "Miljö (m)", "Parkering (m)"])
-                .style(theme.header_style())
+                .style(Style::default().fg(Color::Black).bg(Color::Cyan))
                 .bottom_margin(1),
         )
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(ratatui::widgets::BorderType::Rounded)
-                .title(format!(" 📊 Results ({} found) ", result_count)),
+                .title(format!(" 📊 Results ({} found) ", result_count))
+                .style(Style::default().fg(Color::Cyan)),
         );
 
         f.render_widget(table, area);
+
+        // Render scrollbar
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"));
+        let mut scroll_state = ScrollbarState::new(result_count)
+            .position(self.state.results.scroll_offset);
+        f.render_stateful_widget(scrollbar, area, &mut scroll_state);
     }
 
     fn render_benchmark(&self, f: &mut Frame, area: Rect) {
@@ -602,9 +626,10 @@ impl App {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(ratatui::widgets::BorderType::Rounded)
-                    .title(" 🎯 Controls "),
+                    .title(" 🎯 Controls ")
+                    .style(Style::default().fg(Color::Cyan)),
             )
-            .style(Style::default().fg(theme.text_color()))
+            .style(Style::default().fg(Color::White))
             .alignment(Alignment::Center);
 
         f.render_widget(controls, chunks[0]);
@@ -616,10 +641,11 @@ impl App {
                     Block::default()
                         .borders(Borders::ALL)
                         .border_type(ratatui::widgets::BorderType::Rounded)
-                        .title(" ⚡ Performance "),
+                        .title(" ⚡ Performance ")
+                        .style(Style::default().fg(Color::Yellow)),
                 )
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(theme.alt_text_color()));
+                .style(Style::default().fg(Color::White));
 
             f.render_widget(msg, chunks[1]);
         } else {
@@ -634,7 +660,7 @@ impl App {
                         format!("{}ms", total.as_millis()),
                         format!("{}μs", avg.as_micros()),
                     ])
-                    .style(Style::default().fg(theme.text_color()))
+                    .style(Style::default().fg(Color::White))
                 })
                 .collect();
 
@@ -648,17 +674,27 @@ impl App {
             )
             .header(
                 Row::new(vec!["Algorithm", "Total Time", "Per Address"])
-                    .style(theme.header_style())
+                    .style(Style::default().fg(Color::Black).bg(Color::Cyan))
                     .bottom_margin(1),
             )
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(ratatui::widgets::BorderType::Rounded)
-                    .title(" ⚡ Performance Results "),
+                    .title(" ⚡ Performance Results ")
+                    .style(Style::default().fg(Color::Cyan)),
             );
 
             f.render_widget(table, chunks[1]);
+
+            // Render scrollbar
+            let scrollbar = Scrollbar::default()
+                .orientation(ScrollbarOrientation::VerticalRight)
+                .begin_symbol(Some("↑"))
+                .end_symbol(Some("↓"));
+            let mut scroll_state = ScrollbarState::new(self.state.benchmark.results.len())
+                .position(self.state.benchmark.output_scroll);
+            f.render_stateful_widget(scrollbar, chunks[1], &mut scroll_state);
         }
     }
 
@@ -678,9 +714,10 @@ impl App {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(ratatui::widgets::BorderType::Rounded)
-                    .title(" 🔍 Data Portal "),
+                    .title(" 🔍 Data Portal ")
+                    .style(Style::default().fg(Color::Cyan)),
             )
-            .style(Style::default().fg(theme.text_color()))
+            .style(Style::default().fg(Color::White))
             .alignment(Alignment::Center);
 
         f.render_widget(controls, chunks[0]);
@@ -703,12 +740,22 @@ impl App {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(ratatui::widgets::BorderType::Rounded)
-                    .title(" ✓ Status "),
+                    .title(" ✓ Status ")
+                    .style(Style::default().fg(Color::Cyan)),
             )
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(theme.text_color()));
+            .style(Style::default().fg(Color::White));
 
         f.render_widget(status, chunks[1]);
+
+        // Render scrollbar
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"));
+        let mut scroll_state = ScrollbarState::new(status_lines.len())
+            .position(self.state.updates.status_scroll);
+        f.render_stateful_widget(scrollbar, chunks[1], &mut scroll_state);
     }
 
     fn render_footer(&self, f: &mut Frame, area: Rect) {
@@ -721,8 +768,8 @@ impl App {
 
         let footer = Paragraph::new(status_text)
             .style(Style::default()
-                .fg(Color::White)
-                .bg(Color::DarkGray))
+                .fg(Color::Black)
+                .bg(Color::Cyan))
             .alignment(Alignment::Left);
 
         f.render_widget(footer, area);
@@ -746,6 +793,8 @@ impl App {
             KeyCode::Char('5') => self.state.current_view = View::Updates,
             KeyCode::Left => self.navigate_tabs(-1),
             KeyCode::Right => self.navigate_tabs(1),
+            KeyCode::Up => self.scroll_up(),
+            KeyCode::Down => self.scroll_down(),
             KeyCode::Char('a') | KeyCode::Char('A') => self.cycle_algorithm(),
             KeyCode::Char('+') | KeyCode::Char('=') => self.adjust_cutoff(5.0),
             KeyCode::Char('-') | KeyCode::Char('_') => self.adjust_cutoff(-5.0),
@@ -764,6 +813,48 @@ impl App {
 
         let new_idx = (current_idx + direction).clamp(0, View::ALL.len() as i32 - 1) as usize;
         self.state.current_view = View::ALL[new_idx];
+    }
+
+    fn scroll_up(&mut self) {
+        match self.state.current_view {
+            View::Correlate => {
+                self.state.correlate.details_scroll = self.state.correlate.details_scroll.saturating_sub(1);
+            }
+            View::Results => {
+                self.state.results.scroll_offset = self.state.results.scroll_offset.saturating_sub(1);
+            }
+            View::Benchmark => {
+                self.state.benchmark.output_scroll = self.state.benchmark.output_scroll.saturating_sub(1);
+            }
+            View::Updates => {
+                self.state.updates.status_scroll = self.state.updates.status_scroll.saturating_sub(1);
+            }
+            _ => {}
+        }
+    }
+
+    fn scroll_down(&mut self) {
+        match self.state.current_view {
+            View::Correlate => {
+                if self.state.correlate.details_scroll < self.state.correlate.details.len().saturating_sub(1) {
+                    self.state.correlate.details_scroll += 1;
+                }
+            }
+            View::Results => {
+                if self.state.results.scroll_offset < self.state.results.results.len().saturating_sub(1) {
+                    self.state.results.scroll_offset += 1;
+                }
+            }
+            View::Benchmark => {
+                if self.state.benchmark.output_scroll < self.state.benchmark.results.len().saturating_sub(1) {
+                    self.state.benchmark.output_scroll += 1;
+                }
+            }
+            View::Updates => {
+                self.state.updates.status_scroll += 1;
+            }
+            _ => {}
+        }
     }
 
     fn cycle_algorithm(&mut self) {

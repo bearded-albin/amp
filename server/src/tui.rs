@@ -1,7 +1,7 @@
-use std::{io, time::Duration};
+use std::io;
 
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream},
+    event::{DisableMouseCapture, EnableMouseCapture, Event},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -37,15 +37,5 @@ impl Tui {
         )?;
         self.terminal.show_cursor()?;
         Ok(())
-    }
-
-    pub async fn next_event(&self) -> crossterm::Result<Option<Event>> {
-        use futures::StreamExt;
-        let mut reader = EventStream::new();
-        if let Some(Ok(ev)) = reader.next().await {
-            Ok(Some(ev))
-        } else {
-            Ok(None)
-        }
     }
 }

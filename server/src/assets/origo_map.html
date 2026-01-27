@@ -20,26 +20,6 @@
             width: 100%;
             height: 100%;
         }
-        .pin-marker {
-            width: 30px;
-            height: 40px;
-            background: #FF4444;
-            border: 3px solid white;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .pin-marker::after {
-            content: '';
-            width: 12px;
-            height: 12px;
-            background: white;
-            border-radius: 50%;
-            transform: rotate(45deg);
-        }
     </style>
 </head>
 <body>
@@ -65,13 +45,13 @@
             }
         }
         
-        console.log('Origo Map Init - Center:', [x, y], 'Zoom:', zoom);
+        console.log('🗺️ Origo Map Init - Center:', [x, y], 'Zoom:', zoom);
         
         // Initialize Origo with StadsAtlas config
         fetch('https://stadsatlas.malmo.se/stadsatlas/index.json')
             .then(response => response.json())
             .then(config => {
-                console.log('Loaded StadsAtlas config');
+                console.log('📡 Loaded StadsAtlas config');
                 
                 // Create map with modified config
                 const map = o.create({
@@ -84,50 +64,57 @@
                 
                 // After map initializes, set up layers and add pin
                 map.on('load', function() {
-                    console.log('Map loaded - setting up layers and pin');
+                    console.log('✅ Map loaded - setting up layers');
                     
                     // Get all layers
                     const allLayers = map.getLayers().getArray();
-                    console.log('Total layers:', allLayers.length);
+                    console.log(`📊 Total layers found: ${allLayers.length}`);
+                    
+                    // Log all layer names for debugging
+                    allLayers.forEach((layer, idx) => {
+                        const layerName = layer.get('name') || '';
+                        const isVisible = layer.getVisible();
+                        console.log(`  [${idx}] ${layerName} (visible: ${isVisible})`);
+                    });
                     
                     // Enable background and miljöparkering layers
                     let bgEnabled = false;
                     let miljoEnabled = false;
                     
                     allLayers.forEach(layer => {
-                        const layerName = layer.get('name') || '';
+                        const layerName = (layer.get('name') || '').toLowerCase();
                         
                         // Show background layers
-                        if (layerName.toLowerCase().includes('bakgrund') || 
-                            layerName.toLowerCase().includes('background')) {
+                        if (layerName.includes('bakgrund') || 
+                            layerName.includes('background')) {
                             layer.setVisible(true);
                             bgEnabled = true;
-                            console.log('✓ Enabled background layer:', layerName);
+                            console.log('✅ Enabled background layer:', layer.get('name'));
                         }
                         
-                        // Show miljöparkering layer
-                        if (layerName.toLowerCase().includes('miljoparkering') ||
-                            layerName.toLowerCase().includes('miljo')) {
+                        // Show miljöparkering layer (note: the actual name is 'miljoparkeringl')
+                        if (layerName.includes('miljoparkering')) {
                             layer.setVisible(true);
                             miljoEnabled = true;
-                            console.log('✓ Enabled miljö layer:', layerName);
+                            console.log('✅ Enabled miljöparkering layer:', layer.get('name'));
                         }
                     });
                     
-                    console.log('Background enabled:', bgEnabled);
-                    console.log('Miljö enabled:', miljoEnabled);
+                    console.log('📋 Layer Status:', { bgEnabled, miljoEnabled });
                     
                     // Add pin marker at center
                     addPinMarker(map, x, y);
+                    
+                    console.log('📍 Pin marker added at:', [x, y]);
                 });
                 
                 // Error handling
                 map.on('error', function(error) {
-                    console.error('Map error:', error);
+                    console.error('❌ Map error:', error);
                 });
             })
             .catch(error => {
-                console.error('Failed to load StadsAtlas config:', error);
+                console.error('❌ Failed to load StadsAtlas config:', error);
             });
         
         // Function to add a pin marker using OpenLayers
@@ -149,20 +136,28 @@
                         anchor: [0.5, 1],
                         anchorXUnits: 'fraction',
                         anchorYUnits: 'fraction',
+                        scale: 1.2,
                         src: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
-                            <svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 30 40">
-                                <path d="M15 0 C8 0, 2 6, 2 15 C2 25, 15 40, 15 40 S28 25, 28 15 C28 6, 22 0, 15 0" 
-                                      fill="#FF4444" stroke="white" stroke-width="2"/>
-                                <circle cx="15" cy="14" r="6" fill="white"/>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="44" viewBox="0 0 32 44">
+                                <!-- Pin shadow -->
+                                <defs>
+                                    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                                        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+                                    </filter>
+                                </defs>
+                                <!-- Pin body -->
+                                <path d="M16 2 C9 2, 3 8, 3 16 C3 26, 16 44, 16 44 S29 26, 29 16 C29 8, 23 2, 16 2" 
+                                      fill="#FF4444" stroke="white" stroke-width="2.5" filter="url(#shadow)"/>
+                                <!-- Pin center circle -->
+                                <circle cx="16" cy="15" r="6" fill="white" stroke="#FF4444" stroke-width="1.5"/>
                             </svg>
                         `)
                     })
                 })
             });
             
-            // Add layer to map
+            // Add layer to map (add it last so it appears on top)
             map.addLayer(vectorLayer);
-            console.log('✓ Pin marker added at coordinates:', [x, y]);
         }
     </script>
 </body>

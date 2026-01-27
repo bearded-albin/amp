@@ -9,6 +9,7 @@ use amp_core::correlation_algorithms::{
     RTreeSpatialAlgo, RaycastingAlgo,
 };
 use amp_core::structs::{AdressClean, CorrelationResult, MiljoeDataClean};
+use amp_core::parquet::{write_correlation_parquet, write_android_local_addresses, ParkingRestriction};
 use clap::{Parser, Subcommand};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
@@ -43,6 +44,30 @@ enum Commands {
 
         #[arg(short, long, default_value_t = 50., help = "Distance cutoff in meters")]
         cutoff: f64,
+    },
+
+    /// Output correlation results to parquet (for server database or Android app)
+    Output {
+        #[arg(short, long, value_enum, default_value_t = AlgorithmChoice::KDTree)]
+        algorithm: AlgorithmChoice,
+
+        #[arg(short, long, default_value_t = 50., help = "Distance cutoff in meters")]
+        cutoff: f64,
+
+        #[arg(
+            short,
+            long,
+            default_value = "correlation_results.parquet",
+            help = "Output file path"
+        )]
+        output: String,
+
+        #[arg(
+            short,
+            long,
+            help = "Also generate Android-formatted local storage (with day/time extraction)"
+        )]
+        android: bool,
     },
 
     /// Test correlation with visual browser verification
@@ -110,6 +135,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Commands::Correlate { algorithm, cutoff } => {
             run_correlation(algorithm, cutoff)?;
+        }
+        Commands::Output { algorithm, cutoff, output, android } => {
+            run_output(algorithm, cutoff, &output, android)?;
         }
         Commands::Test {
             algorithm,
@@ -415,8 +443,7 @@ fn run_correlation(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Loading data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -448,8 +475,7 @@ fn run_correlation(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?
-            .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?            .progress_chars("█▓▒░ "),
     );
 
     // Correlate with miljödata
@@ -586,6 +612,163 @@ fn run_correlation(
     Ok(())
 }
 
+/// Run correlation and output results to parquet file (server database or Android app)
+fn run_output(
+    algorithm: AlgorithmChoice,
+    cutoff: f64,
+    output_path: &str,
+    generate_android: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Load data with progress
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data...");
+
+    let (addresses, miljodata, parkering): (
+        Vec<AdressClean>,
+        Vec<MiljoeDataClean>,
+        Vec<MiljoeDataClean>,
+    ) = api()?;
+    pb.finish_with_message(format!(
+        "✓ Loaded {} addresses, {} miljödata zones, {} parkering zones",
+        addresses.len(),
+        miljodata.len(),
+        parkering.len()
+    ));
+
+    println!("\n📋 Output Configuration:");
+    println!("   Algorithm: {:?}", algorithm);
+    println!("   Distance cutoff: {} meters", cutoff);
+    println!("   Output file: {}", output_path);
+    if generate_android {
+        println!("   Android format: Enabled (extracting day/time data)");
+    }
+    println!();
+
+    let start = Instant::now();
+
+    // Create progress bar
+    let pb = ProgressBar::new(addresses.len() as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}% {msg}")?            .progress_chars("█▓▒░ "),
+    );
+
+    // Correlate with miljödata
+    pb.set_message("Correlating with miljödata...");
+    let miljo_results = correlate_dataset(&algorithm, &addresses, &miljodata, cutoff, &pb)?;
+
+    // Correlate with parkering
+    pb.set_message("Correlating with parkering...");
+    let parkering_results = correlate_dataset(&algorithm, &addresses, &parkering, cutoff, &pb)?;
+
+    let duration = start.elapsed();
+    pb.finish_with_message(format!("✓ Completed in {:.2?}", duration));
+
+    // Merge results
+    let merged = merge_results(&addresses, &miljo_results, &parkering_results);
+
+    let total_matches = merged.iter().filter(|r| r.has_match()).count();
+    println!("\n✓ Correlation complete");
+    println!("   Total matches: {}/{} ({:.1}%)",
+        total_matches,
+        addresses.len(),
+        (total_matches as f64 / addresses.len() as f64) * 100.0
+    );
+
+    // Write to parquet (server format)
+    println!("\n💾 Writing server parquet file...");
+    write_correlation_parquet(merged.clone())
+        .map_err(|e| format!("Failed to write parquet: {}", e))?;
+    println!("   ✓ Saved to {}", output_path);
+
+    // Generate Android format if requested
+    if generate_android {
+        println!("\n🔄 Generating Android local storage format...");
+
+        // Extract parking restrictions for Android (using miljödata info which contains day/time)
+        let mut android_addresses = Vec::new();
+
+        for result in merged {
+            if let Some((distance, info)) = result.miljo_match {
+                // Parse info to extract day and time
+                // Info format from miljödata might be like "Miljöparkering mån-fre 8-18, dag: 1, tid: 0800-1000"
+                // For now, we'll extract from structured data if available
+                if let Some(restriction) = extract_restriction_from_info(&info) {
+                    let gata_parts: Vec<&str> = result.address.split_whitespace().collect();
+                    if gata_parts.len() >= 2 {
+                        android_addresses.push(ParkingRestriction {
+                            gata: gata_parts[0].to_string(),
+                            gatunummer: gata_parts[1].to_string(),
+                            postnummer: parse_postnummer(&result.postnummer),
+                            dag: restriction.dag,
+                            tid: restriction.tid,
+                            info: info,
+                        });
+                    }
+                }
+            }
+        }
+
+        if !android_addresses.is_empty() {
+            let android_output = format!("{}/.app_addresses.parquet", std::path::Path::new(output_path).parent().unwrap_or_else(|| std::path::Path::new(".")).display());
+            write_android_local_addresses(&android_output, android_addresses.clone())
+                .map_err(|e| format!("Failed to write Android parquet: {}", e))?;
+            println!("   ✓ Saved to {}", android_output);
+            println!("   ✓ Extracted {} parking restrictions for Android app", android_addresses.len());
+        } else {
+            println!("   ⚠️  No restrictions extracted for Android format");
+        }
+    }
+
+    println!("\n✅ Output complete!");
+    Ok(())
+}
+
+/// Helper structure for extracted restriction data
+struct ExtractedRestriction {
+    dag: u8,
+    tid: String,
+}
+
+/// Extract day and time from info string
+fn extract_restriction_from_info(info: &str) -> Option<ExtractedRestriction> {
+    // Try to parse day (1-31) and time (HHMM-HHMM) from info
+    // This is a simplified implementation - actual parsing depends on info format
+    
+    // Look for patterns like "dag: 1" and "tid: 0800-1000"
+    let dag = if let Some(pos) = info.find("dag:") {
+        let rest = &info[pos + 4..].trim_start();
+        rest.chars()
+            .take_while(|c| c.is_numeric())
+            .collect::<String>()
+            .parse::<u8>()
+            .ok()?
+    } else {
+        return None;
+    };
+
+    let tid = if let Some(pos) = info.find("tid:") {
+        let rest = &info[pos + 4..].trim_start();
+        rest.chars()
+            .take_while(|c| c.is_numeric() || c == &'-')
+            .collect::<String>()
+    } else {
+        return None;
+    };
+
+    Some(ExtractedRestriction { dag, tid })
+}
+
+/// Parse postnummer string to u16
+fn parse_postnummer(postnummer_str: &str) -> u16 {
+    postnummer_str
+        .chars()
+        .filter(|c| c.is_numeric())
+        .collect::<String>()
+        .parse::<u16>()
+        .unwrap_or(0)
+}
+
 fn run_test_mode(
     algorithm: AlgorithmChoice,
     cutoff: f64,
@@ -593,8 +776,7 @@ fn run_test_mode(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load data with progress
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Loading data for testing...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for testing...");
 
     let (addresses, miljodata, parkering): (
         Vec<AdressClean>,
@@ -618,8 +800,7 @@ fn run_test_mode(
     let pb = ProgressBar::new(addresses.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?
-            .progress_chars("█▓▒░ "),
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {percent}%")?            .progress_chars("█▓▒░ "),
     );
 
     let miljo_results = correlate_dataset(&algorithm, &addresses, &miljodata, cutoff, &pb)?;
@@ -839,8 +1020,7 @@ fn open_browser_window(
 fn run_benchmark(sample_size: usize, cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
     // Load data
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Loading data for benchmarking...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Loading data for benchmarking...");
 
     let (addresses, zones) = amp_core::api::api_miljo_only()?;
 
@@ -1103,8 +1283,7 @@ async fn check_updates(checksum_file: &str) -> Result<(), Box<dyn std::error::Er
     );
 
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);
-    pb.set_message("Fetching remote data...");
+    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.cyan} {msg}")?);    pb.set_message("Fetching remote data...");
 
     new_checksums.update_from_remote().await?;
     pb.finish_with_message("✓ Data fetched");

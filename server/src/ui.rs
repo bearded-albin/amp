@@ -11,7 +11,6 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     prelude::*,
-    style::Stylize,
     text::{Line, Span},
     widgets::{
         Block, Borders, Gauge, List, ListItem, Paragraph, Row, Scrollbar, ScrollbarOrientation,
@@ -46,26 +45,26 @@ const AMP_LOGO: &str = r#"
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Theme {
     // Primary colors
-    pub primary: Color,          // Cyan - accent color
-    pub primary_dark: Color,     // Darker cyan
-    pub secondary: Color,        // Yellow - warning/info
-    pub accent: Color,           // Green - success
-    pub error: Color,            // Red - errors
+    pub primary: Color,      // Cyan - accent color
+    pub primary_dark: Color, // Darker cyan
+    pub secondary: Color,    // Yellow - warning/info
+    pub accent: Color,       // Green - success
+    pub error: Color,        // Red - errors
 
     // Text colors
-    pub text: Color,             // White - primary text
-    pub text_muted: Color,       // Gray - secondary text
-    pub text_inverse: Color,     // Black - on colored backgrounds
+    pub text: Color,         // White - primary text
+    pub text_muted: Color,   // Gray - secondary text
+    pub text_inverse: Color, // Black - on colored backgrounds
 
     // Background
-    pub bg: Color,               // Black - main bg
+    pub bg: Color, // Black - main bg
 }
 
 impl Default for Theme {
     fn default() -> Self {
         Self {
             primary: Color::Cyan,
-            primary_dark: Color::DarkCyan,
+            primary_dark: Color::Cyan,
             secondary: Color::Yellow,
             accent: Color::Green,
             error: Color::Red,
@@ -89,7 +88,7 @@ impl Theme {
         Style::default().fg(self.text)
     }
 
-    pub fn text_muted(&self) -> Style {
+    pub fn _text_muted(&self) -> Style {
         Style::default().fg(self.text_muted)
     }
 
@@ -112,16 +111,12 @@ impl Theme {
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn button_default(&self) -> Style {
-        Style::default()
-            .fg(self.text)
-            .add_modifier(Modifier::BOLD)
+    pub fn _button_default(&self) -> Style {
+        Style::default().fg(self.text).add_modifier(Modifier::BOLD)
     }
 
     pub fn table_header(&self) -> Style {
-        Style::default()
-            .fg(self.text_inverse)
-            .bg(self.primary)
+        Style::default().fg(self.text_inverse).bg(self.primary)
     }
 
     pub fn block(&self) -> Style {
@@ -418,7 +413,10 @@ impl App {
 
         // Description
         lines.push(Line::from(vec![
-            Span::styled("Correlate addresses with parking zones using ", theme.text_default()),
+            Span::styled(
+                "Correlate addresses with parking zones using ",
+                theme.text_default(),
+            ),
             Span::styled("spatial algorithms", theme.warning()),
         ]));
 

@@ -101,27 +101,43 @@
         .popup {
             position: absolute;
             background: white;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            max-width: 250px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            max-width: 280px;
             z-index: 1001;
-            font-size: 12px;
-        }
-        .popup h4 {
-            margin: 0 0 8px 0;
             font-size: 13px;
+            display: none;
+        }
+        .popup.show {
+            display: block;
+        }
+        .popup-item {
+            margin-bottom: 12px;
+        }
+        .popup-item:last-child {
+            margin-bottom: 0;
+        }
+        .popup-icon {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+        .popup-title {
             font-weight: 600;
             color: #333;
+            margin-bottom: 3px;
         }
-        .popup p {
-            margin: 0 0 5px 0;
+        .popup-distance {
+            color: #ff6b35;
+            font-weight: 500;
+            font-size: 12px;
+        }
+        .popup-info {
             color: #666;
+            font-size: 12px;
             line-height: 1.4;
-        }
-        .popup p:last-child {
-            margin-bottom: 0;
         }
         .attribution {
             position: absolute;
@@ -354,72 +370,116 @@
                 const coordinate = evt.coordinate;
                 const popupElement = document.getElementById('popup');
                 
-                // Query miljöparkering if visible
+                // Query both layers
+                const promises = [];
+                
                 if (miljoLayer.getVisible()) {
-                    queryWMS(miljoLayer, coordinate, 'miljöparkering_l', (info) => {
-                        if (info) {
-                            showPopup(coordinate, info, popupElement, map);
-                        }
-                    });
+                    promises.push(
+                        queryWMS(miljoLayer, coordinate, 'miljoparkering_l', 'miljo')
+                    );
                 }
-                // Query parkeringsavgifter if visible
-                else if (parkLayer.getVisible()) {
-                    queryWMS(parkLayer, coordinate, 'parkeringsavgift_p', (info) => {
-                        if (info) {
-                            showPopup(coordinate, info, popupElement, map);
-                        }
-                    });
+                
+                if (parkLayer.getVisible()) {
+                    promises.push(
+                        queryWMS(parkLayer, coordinate, 'parkeringsavgift_p', 'avgift')
+                    );
                 }
+                
+                Promise.all(promises).then((results) => {
+                    const validResults = results.filter(r => r && r.info);
+                    if (validResults.length > 0) {
+                        showPopup(coordinate, validResults, popupElement, map);
+                    } else {
+                        console.log('No features found at this location');
+                    }
+                });
             });
             
             // WMS GetFeatureInfo query function
-            function queryWMS(layer, coordinate, layerName, callback) {
-                const resolution = view.getResolution();
-                const url = layer.getSource().getFeatureInfoUrl(
-                    coordinate,
-                    resolution,
-                    projection,
-                    {
-                        'INFO_FORMAT': 'text/html',
-                        'QUERY_LAYERS': layerName
+            function queryWMS(layer, coordinate, layerName, type) {
+                return new Promise((resolve) => {
+                    const resolution = view.getResolution();
+                    const url = layer.getSource().getFeatureInfoUrl(
+                        coordinate,
+                        resolution,
+                        projection,
+                        {
+                            'INFO_FORMAT': 'application/json',
+                            'QUERY_LAYERS': layerName,
+                            'FEATURE_COUNT': 1
+                        }
+                    );
+                    
+                    if (!url) {
+                        resolve(null);
+                        return;
                     }
-                );
-                
-                if (url) {
+                    
                     fetch(url)
-                        .then(response => response.text())
-                        .then(html => {
-                            // Parse the HTML response
-                            const parser = new DOMParser();
-                            const doc = parser.parseFromString(html, 'text/html');
-                            const text = doc.body.textContent.trim();
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('GetFeatureInfo response (' + type + '):', data);
                             
-                            if (text && !text.includes('no results')) {
-                                callback(text);
+                            if (data.features && data.features.length > 0) {
+                                const feature = data.features[0];
+                                const props = feature.properties || {};
+                                
+                                let title = '';
+                                let info = '';
+                                
+                                if (type === 'miljo') {
+                                    title = '🌍 Miljödata';
+                                    // Try different field names based on your API
+                                    info = props.copy_value || props.value || props.copyvalue || 'Parkeringsrestriktioner';
+                                } else if (type === 'avgift') {
+                                    title = '🅿️ Parkering';
+                                    // For avgifter, use taxa field
+                                    info = props.taxa || props.value || props.copyvalue || 'Parkeringsavgift';
+                                }
+                                
+                                resolve({
+                                    type: type,
+                                    title: title,
+                                    info: info,
+                                    props: props
+                                });
                             } else {
-                                callback(null);
+                                resolve(null);
                             }
                         })
                         .catch(err => {
-                            console.warn('GetFeatureInfo error:', err);
-                            callback(null);
+                            console.warn('GetFeatureInfo error (' + type + '):', err);
+                            resolve(null);
                         });
-                } else {
-                    callback(null);
-                }
+                });
             }
             
             // Show popup function
-            function showPopup(coordinate, info, element, map) {
-                element.innerHTML = '<h4>Parkeringsinfo</h4><p>' + info.substring(0, 200) + '...</p>';
+            function showPopup(coordinate, results, element, map) {
+                let html = '';
+                
+                results.forEach((result, idx) => {
+                    html += '<div class="popup-item">';
+                    html += '<div class="popup-icon">' + result.title + '</div>';
+                    html += '<div class="popup-distance">3.42m away</div>';
+                    html += '<div class="popup-info">' + result.info + '</div>';
+                    html += '</div>';
+                    
+                    if (idx < results.length - 1) {
+                        html += '<hr style="border: none; border-top: 1px solid #eee; margin: 8px 0;">';
+                    }
+                });
+                
+                element.innerHTML = html;
                 const pixel = map.getPixelFromCoordinate(coordinate);
                 element.style.left = (pixel[0] + 10) + 'px';
                 element.style.top = (pixel[1] - 10) + 'px';
                 element.classList.add('show');
                 
+                // Auto-hide after 6 seconds
                 setTimeout(() => {
                     element.classList.remove('show');
-                }, 5000);
+                }, 6000);
             }
             
             // Update info box

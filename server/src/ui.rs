@@ -13,15 +13,18 @@ use ratatui::{
     prelude::*,
     style::Stylize,
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Row, Table, Tabs, Wrap, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{
+        Block, Borders, Gauge, List, ListItem, Paragraph, Row, Scrollbar, ScrollbarOrientation,
+        ScrollbarState, Table, Tabs, Wrap,
+    },
 };
 
 use crate::classification;
 use crate::tui::Tui;
 use amp_core::api::api;
 use amp_core::correlation_algorithms::{
-    CorrelationAlgo, DistanceBasedAlgo, GridNearestAlgo, KDTreeSpatialAlgo,
-    OverlappingChunksAlgo, RaycastingAlgo, RTreeSpatialAlgo,
+    CorrelationAlgo, DistanceBasedAlgo, GridNearestAlgo, KDTreeSpatialAlgo, OverlappingChunksAlgo,
+    RTreeSpatialAlgo, RaycastingAlgo,
 };
 use amp_core::structs::{AdressClean, CorrelationResult, MiljoeDataClean};
 
@@ -61,23 +64,25 @@ impl ColorTheme {
         }
     }
 
-    pub fn bg_color(&self) -> Color {
+    pub fn _bg_color(&self) -> Color {
         match self {
             ColorTheme::Light => Color::White,
             ColorTheme::Dark => Color::Black,
         }
     }
 
-    pub fn alt_text_color(&self) -> Color {
+    pub fn _alt_text_color(&self) -> Color {
         match self {
             ColorTheme::Light => Color::DarkGray,
             ColorTheme::Dark => Color::Gray,
         }
     }
 
-    pub fn header_style(&self) -> Style {
+    pub fn _header_style(&self) -> Style {
         match self {
-            ColorTheme::Light => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
+            ColorTheme::Light => Style::default()
+                .fg(Color::Blue)
+                .add_modifier(Modifier::BOLD),
             ColorTheme::Dark => Style::default().fg(Color::Cyan),
         }
     }
@@ -161,13 +166,13 @@ type CorrelationTuple = (String, f64, String);
 
 /// Per-view state
 pub struct DashboardState {
-    scroll_offset: u16,
+    _scroll_offset: u16,
 }
 
 pub struct CorrelateState {
     running: bool,
     progress: f64,
-    status_msg: String,
+    _status_msg: String,
     details: Vec<String>,
     details_scroll: usize,
 }
@@ -201,7 +206,7 @@ pub struct AppState {
     pub theme: ColorTheme,
 
     // Per-view states
-    dashboard: DashboardState,
+    _dashboard: DashboardState,
     correlate: CorrelateState,
     results: ResultsState,
     benchmark: BenchmarkState,
@@ -216,11 +221,11 @@ impl Default for AppState {
             cutoff_distance: 20.0,
             should_quit: false,
             theme: ColorTheme::auto(),
-            dashboard: DashboardState { scroll_offset: 0 },
+            _dashboard: DashboardState { _scroll_offset: 0 },
             correlate: CorrelateState {
                 running: false,
                 progress: 0.0,
-                status_msg: "Ready. Press [Enter] to start.".to_string(),
+                _status_msg: "Ready. Press [Enter] to start.".to_string(),
                 details: Vec::new(),
                 details_scroll: 0,
             },
@@ -232,7 +237,10 @@ impl Default for AppState {
             benchmark: BenchmarkState {
                 running: false,
                 results: Vec::new(),
-                output: vec!["Benchmarks available: KD-Tree, R-Tree, Grid, Distance, Raycasting, Chunks".to_string()],
+                output: vec![
+                    "Benchmarks available: KD-Tree, R-Tree, Grid, Distance, Raycasting, Chunks"
+                        .to_string(),
+                ],
                 output_scroll: 0,
             },
             updates: UpdatesState {
@@ -273,11 +281,10 @@ impl App {
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
 
-            if crossterm::event::poll(timeout)? {
-                if let crossterm::event::Event::Key(key) = crossterm::event::read()? {
+            if crossterm::event::poll(timeout)?
+                && let crossterm::event::Event::Key(key) = crossterm::event::read()? {
                     self.handle_key(key)?;
                 }
-            }
 
             if last_tick.elapsed() >= tick_rate {
                 last_tick = Instant::now();
@@ -298,7 +305,7 @@ impl App {
         // Optimize for small/vertical screens: reduce header to 1 line if needed
         let header_height = if area.height < 20 { 1 } else { 2 };
         let footer_height = 1;
-        let content_height = area.height.saturating_sub(header_height + footer_height) as u16;
+        let content_height = area.height.saturating_sub(header_height + footer_height);
 
         // Main layout: header | content | footer
         let chunks = Layout::default()
@@ -348,7 +355,7 @@ impl App {
     }
 
     fn render_dashboard(&self, f: &mut Frame, area: Rect) {
-        let theme = self.state.theme;
+        let _theme = self.state.theme;
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
@@ -360,17 +367,18 @@ impl App {
         f.render_widget(block, area);
 
         // Create content lines - using proper spacing instead of offsets
-        let mut lines = vec![
-            Line::from(AMP_LOGO),
-        ];
+        let mut lines = vec![Line::from(AMP_LOGO)];
 
         // Add spacing
         lines.push(Line::from(""));
 
         // Title
-        lines.push(Line::from(vec![
-            Span::styled("Address Parking Mapper", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "Address Parking Mapper",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]));
 
         // Description
         lines.push(Line::from(vec![
@@ -382,13 +390,20 @@ impl App {
         lines.push(Line::from(""));
 
         // Stats section
-        lines.push(Line::from(vec![
-            Span::styled("📋 Quick Stats:", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "📋 Quick Stats:",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]));
 
         // Algorithm line
         lines.push(Line::from(vec![
-            Span::raw(format!("  • Algorithm: {}", self.state.current_algorithm.name())).fg(Color::White),
+            Span::raw(format!(
+                "  • Algorithm: {}",
+                self.state.current_algorithm.name()
+            ))
+            .fg(Color::White),
         ]));
 
         // Cutoff line
@@ -400,9 +415,12 @@ impl App {
         lines.push(Line::from(""));
 
         // Navigation section
-        lines.push(Line::from(vec![
-            Span::styled("⌨️  Navigation:", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "⌨️  Navigation:",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]));
 
         lines.push(Line::from(vec![
             Span::raw("  [1-5] Jump | [←→] Tab | [a] Algorithm | [+/-] Distance").fg(Color::White),
@@ -413,9 +431,17 @@ impl App {
 
         // Exit section
         lines.push(Line::from(vec![
-            Span::styled("[Enter]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[Enter]",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" Run | "),
-            Span::styled("[Ctrl+C]", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[Ctrl+C]",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" Exit"),
         ]));
 
@@ -428,15 +454,15 @@ impl App {
     }
 
     fn render_correlate(&self, f: &mut Frame, area: Rect) {
-        let theme = self.state.theme;
+        let _theme = self.state.theme;
 
         // Layout: config | progress | details
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Percentage(40),  // config section
-                Constraint::Percentage(20),  // progress
-                Constraint::Percentage(40),  // details
+                Constraint::Percentage(40), // config section
+                Constraint::Percentage(20), // progress
+                Constraint::Percentage(40), // details
             ])
             .split(area);
 
@@ -477,7 +503,7 @@ impl App {
         );
 
         f.render_widget(list, chunks[2]);
-        
+
         // Render scrollbar for details
         let scrollbar = Scrollbar::default()
             .orientation(ScrollbarOrientation::VerticalRight)
@@ -489,7 +515,7 @@ impl App {
     }
 
     fn render_algorithm_selector(&self, f: &mut Frame, area: Rect) {
-        let theme = self.state.theme;
+        let _theme = self.state.theme;
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
@@ -524,10 +550,7 @@ impl App {
 
         let table = Table::new(
             rows,
-            [
-                Constraint::Percentage(35),
-                Constraint::Percentage(65),
-            ],
+            [Constraint::Percentage(35), Constraint::Percentage(65)],
         )
         .style(Style::default().fg(Color::White));
 
@@ -535,7 +558,7 @@ impl App {
     }
 
     fn render_results(&self, f: &mut Frame, area: Rect) {
-        let theme = self.state.theme;
+        let _theme = self.state.theme;
         let result_count = self.state.results.results.len();
 
         if result_count == 0 {
@@ -566,11 +589,21 @@ impl App {
                     result.address.clone(),
                     format!(
                         "{:.1}m",
-                        result.miljo_match.as_ref().map(|(d, _)| d).copied().unwrap_or(999.0)
+                        result
+                            .miljo_match
+                            .as_ref()
+                            .map(|(d, _)| d)
+                            .copied()
+                            .unwrap_or(999.0)
                     ),
                     format!(
                         "{:.1}m",
-                        result.parkering_match.as_ref().map(|(d, _)| d).copied().unwrap_or(999.0)
+                        result
+                            .parkering_match
+                            .as_ref()
+                            .map(|(d, _)| d)
+                            .copied()
+                            .unwrap_or(999.0)
                     ),
                 ])
                 .style(Style::default().fg(Color::White))
@@ -605,13 +638,13 @@ impl App {
             .orientation(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓"));
-        let mut scroll_state = ScrollbarState::new(result_count)
-            .position(self.state.results.scroll_offset);
+        let mut scroll_state =
+            ScrollbarState::new(result_count).position(self.state.results.scroll_offset);
         f.render_stateful_widget(scrollbar, area, &mut scroll_state);
     }
 
     fn render_benchmark(&self, f: &mut Frame, area: Rect) {
-        let theme = self.state.theme;
+        let _theme = self.state.theme;
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -699,7 +732,7 @@ impl App {
     }
 
     fn render_updates(&self, f: &mut Frame, area: Rect) {
-        let theme = self.state.theme;
+        let _theme = self.state.theme;
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -735,7 +768,7 @@ impl App {
 
         status_lines.push(Line::from(self.state.updates.status.clone()));
 
-        let status = Paragraph::new(status_lines)
+        let status = Paragraph::new(status_lines.clone())
             .block(
                 Block::default()
                     .borders(Borders::ALL)
@@ -753,13 +786,13 @@ impl App {
             .orientation(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓"));
-        let mut scroll_state = ScrollbarState::new(status_lines.len())
-            .position(self.state.updates.status_scroll);
+        let mut scroll_state =
+            ScrollbarState::new(status_lines.len()).position(self.state.updates.status_scroll);
         f.render_stateful_widget(scrollbar, chunks[1], &mut scroll_state);
     }
 
     fn render_footer(&self, f: &mut Frame, area: Rect) {
-        let theme = self.state.theme;
+        let _theme = self.state.theme;
         let status_text = format!(
             " {} | Cutoff: {:.1}m | Ctrl+C to Exit ",
             self.state.current_algorithm.name(),
@@ -767,9 +800,7 @@ impl App {
         );
 
         let footer = Paragraph::new(status_text)
-            .style(Style::default()
-                .fg(Color::Black)
-                .bg(Color::Cyan))
+            .style(Style::default().fg(Color::Black).bg(Color::Cyan))
             .alignment(Alignment::Left);
 
         f.render_widget(footer, area);
@@ -818,16 +849,20 @@ impl App {
     fn scroll_up(&mut self) {
         match self.state.current_view {
             View::Correlate => {
-                self.state.correlate.details_scroll = self.state.correlate.details_scroll.saturating_sub(1);
+                self.state.correlate.details_scroll =
+                    self.state.correlate.details_scroll.saturating_sub(1);
             }
             View::Results => {
-                self.state.results.scroll_offset = self.state.results.scroll_offset.saturating_sub(1);
+                self.state.results.scroll_offset =
+                    self.state.results.scroll_offset.saturating_sub(1);
             }
             View::Benchmark => {
-                self.state.benchmark.output_scroll = self.state.benchmark.output_scroll.saturating_sub(1);
+                self.state.benchmark.output_scroll =
+                    self.state.benchmark.output_scroll.saturating_sub(1);
             }
             View::Updates => {
-                self.state.updates.status_scroll = self.state.updates.status_scroll.saturating_sub(1);
+                self.state.updates.status_scroll =
+                    self.state.updates.status_scroll.saturating_sub(1);
             }
             _ => {}
         }
@@ -836,17 +871,23 @@ impl App {
     fn scroll_down(&mut self) {
         match self.state.current_view {
             View::Correlate => {
-                if self.state.correlate.details_scroll < self.state.correlate.details.len().saturating_sub(1) {
+                if self.state.correlate.details_scroll
+                    < self.state.correlate.details.len().saturating_sub(1)
+                {
                     self.state.correlate.details_scroll += 1;
                 }
             }
             View::Results => {
-                if self.state.results.scroll_offset < self.state.results.results.len().saturating_sub(1) {
+                if self.state.results.scroll_offset
+                    < self.state.results.results.len().saturating_sub(1)
+                {
                     self.state.results.scroll_offset += 1;
                 }
             }
             View::Benchmark => {
-                if self.state.benchmark.output_scroll < self.state.benchmark.results.len().saturating_sub(1) {
+                if self.state.benchmark.output_scroll
+                    < self.state.benchmark.results.len().saturating_sub(1)
+                {
                     self.state.benchmark.output_scroll += 1;
                 }
             }
@@ -886,7 +927,10 @@ impl App {
         self.state.correlate.running = true;
         self.state.correlate.progress = 0.0;
         self.state.correlate.details.clear();
-        self.state.correlate.details.push("Loading data...".to_string());
+        self.state
+            .correlate
+            .details
+            .push("Loading data...".to_string());
 
         let (addresses, miljodata, parkering): (
             Vec<AdressClean>,
@@ -906,34 +950,24 @@ impl App {
 
         // Convert to old-style algorithm for compatibility
         let algo_choice = match self.state.current_algorithm {
-            Algorithm::KDTree => crate::ui::AlgorithmChoice::KDTree,
-            Algorithm::RTree => crate::ui::AlgorithmChoice::RTree,
-            Algorithm::Grid => crate::ui::AlgorithmChoice::Grid,
-            Algorithm::DistanceBased => crate::ui::AlgorithmChoice::DistanceBased,
-            Algorithm::Raycasting => crate::ui::AlgorithmChoice::Raycasting,
-            Algorithm::OverlappingChunks => crate::ui::AlgorithmChoice::OverlappingChunks,
+            Algorithm::KDTree => AlgorithmChoice::KDTree,
+            Algorithm::RTree => AlgorithmChoice::RTree,
+            Algorithm::Grid => AlgorithmChoice::Grid,
+            Algorithm::DistanceBased => AlgorithmChoice::DistanceBased,
+            Algorithm::Raycasting => AlgorithmChoice::Raycasting,
+            Algorithm::OverlappingChunks => AlgorithmChoice::OverlappingChunks,
         };
 
-        let miljo_results = self.correlate_dataset(
-            algo_choice,
-            &addresses,
-            &miljodata,
-            &mut counter,
-            total,
-        )?;
+        let miljo_results =
+            self.correlate_dataset(algo_choice, &addresses, &miljodata, &mut counter, total)?;
 
         self.state
             .correlate
             .details
             .push(format!("Miljödata matches: {}", miljo_results.len()));
 
-        let parkering_results = self.correlate_dataset(
-            algo_choice,
-            &addresses,
-            &parkering,
-            &mut counter,
-            total,
-        )?;
+        let parkering_results =
+            self.correlate_dataset(algo_choice, &addresses, &parkering, &mut counter, total)?;
 
         self.state
             .correlate

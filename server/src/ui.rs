@@ -4,7 +4,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout},
     prelude::*,
-    widgets::{Block, Borders, Gauge, Paragraph, Tabs, Wrap},
+    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Tabs, Wrap},
 };
 
 use crate::classification;
@@ -79,15 +79,37 @@ impl View {
     }
 }
 
+/// State per view - keep data when switching tabs
+pub struct CorrelateState {
+    pub progress: f64,
+    pub results: Vec<CorrelationResult>,
+    pub output_lines: Vec<String>,
+}
+
+pub struct TestState {
+    pub output_lines: Vec<String>,
+}
+
+pub struct BenchmarkState {
+    pub output_lines: Vec<String>,
+}
+
+pub struct UpdatesState {
+    pub output_lines: Vec<String>,
+}
+
 pub struct AppState {
     pub view: View,
     pub selected_tab: usize,
     pub selected_algorithm: AlgorithmChoice,
     pub cutoff: f64,
-    pub is_running: bool,
-    pub progress: f64,
-    pub correlation_results: Vec<CorrelationResult>,
-    pub last_action: String,
+    pub status_line: String,
+
+    // Per-view state - persists when switching
+    pub correlate_state: CorrelateState,
+    pub test_state: TestState,
+    pub benchmark_state: BenchmarkState,
+    pub updates_state: UpdatesState,
 }
 
 impl Default for AppState {
@@ -97,10 +119,21 @@ impl Default for AppState {
             selected_tab: 0,
             selected_algorithm: AlgorithmChoice::KDTree,
             cutoff: 20.0,
-            is_running: false,
-            progress: 0.0,
-            correlation_results: Vec::new(),
-            last_action: "Ready. [1-5] to navigate".to_string(),
+            status_line: "Ready".to_string(),
+            correlate_state: CorrelateState {
+                progress: 0.0,
+                results: Vec::new(),
+                output_lines: vec!["Ready. Press [Enter] to correlate.".to_string()],
+            },
+            test_state: TestState {
+                output_lines: vec!["Ready. Press [Enter] to run browser test.".to_string()],
+            },
+            benchmark_state: BenchmarkState {
+                output_lines: vec!["Ready. Press [Enter] to benchmark.".to_string()],
+            },
+            updates_state: UpdatesState {
+                output_lines: vec!["Ready. Press [Enter] to check updates.".to_string()],
+            },
         }
     }
 }
@@ -133,12 +166,10 @@ impl App {
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
 
-            if crossterm::event::poll(timeout)?
-                && let Event::Key(key) = crossterm::event::read()? {
+            if crossterm::event::poll(timeout)? {
+                if let Event::Key(key) = crossterm::event::read()? {
                     // Always exit on Ctrl+C
-                    if key
-                        .modifiers
-                        .contains(crossterm::event::KeyModifiers::CONTROL)
+                    if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
                         && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
                     {
                         break;
@@ -148,9 +179,9 @@ impl App {
                         break;
                     }
                 }
+            }
 
             if last_tick.elapsed() >= tick_rate {
-                self.on_tick()?;
                 last_tick = Instant::now();
             }
         }
@@ -198,38 +229,46 @@ impl App {
                 self.state.selected_tab = 4;
                 self.state.view = View::Updates;
             }
-            KeyCode::Char('a') => {
+            KeyCode::Char('a') | KeyCode::Char('A') => {
                 let idx = AlgorithmChoice::ALL
                     .iter()
                     .position(|a| *a == self.state.selected_algorithm)
                     .unwrap_or(0);
                 let next = (idx + 1) % AlgorithmChoice::ALL.len();
                 self.state.selected_algorithm = AlgorithmChoice::ALL[next];
-                self.state.last_action =
+                self.state.status_line =
                     format!("Algorithm: {}", self.state.selected_algorithm.label());
             }
             KeyCode::Char('+') => {
                 self.state.cutoff += 5.0;
-                self.state.last_action = format!("Cutoff: {:.1}m", self.state.cutoff);
+                self.state.status_line = format!("Cutoff: {:.1}m", self.state.cutoff);
             }
-            KeyCode::Char('-') => {
+            KeyCode::Char('-') | KeyCode::Char('_') => {
                 if self.state.cutoff > 5.0 {
                     self.state.cutoff -= 5.0;
-                    self.state.last_action = format!("Cutoff: {:.1}m", self.state.cutoff);
                 }
+                self.state.status_line = format!("Cutoff: {:.1}m", self.state.cutoff);
             }
             KeyCode::Enter => match self.state.view {
                 View::Correlate => {
-                    self.run_correlation()?;
+                    if let Err(e) = self.run_correlation() {
+                        self.state.status_line = format!("Error: {}", e);
+                    }
                 }
                 View::Test => {
-                    self.run_test_mode()?;
+                    if let Err(e) = self.run_test_mode() {
+                        self.state.status_line = format!("Error: {}", e);
+                    }
                 }
                 View::Benchmark => {
-                    self.run_benchmark()?;
+                    if let Err(e) = self.run_benchmark() {
+                        self.state.status_line = format!("Error: {}", e);
+                    }
                 }
                 View::Updates => {
-                    self.run_update_check()?;
+                    if let Err(e) = self.run_update_check() {
+                        self.state.status_line = format!("Error: {}", e);
+                    }
                 }
                 View::Dashboard => {}
             },
@@ -239,36 +278,36 @@ impl App {
         Ok(false)
     }
 
-    fn on_tick(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
-    }
-
     fn draw(&self, frame: &mut Frame) {
         let size = frame.area();
 
-        let main_layout = Layout::default()
+        // Responsive layout - adapts to terminal height
+        let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(2),
-                Constraint::Min(10),
-                Constraint::Length(2),
+                Constraint::Length(1),  // tabs
+                Constraint::Min(5),     // content (flexible)
+                Constraint::Length(1),  // status
             ])
             .split(size);
 
-        self.draw_header(frame, main_layout[0]);
-        self.draw_body(frame, main_layout[1]);
-        self.draw_footer(frame, main_layout[2]);
+        self.draw_tabs(frame, layout[0]);
+        self.draw_body(frame, layout[1]);
+        self.draw_status(frame, layout[2]);
     }
 
-    fn draw_header(&self, frame: &mut Frame, area: Rect) {
-        let tabs: Vec<&str> = View::ALL.iter().map(|v| v.title()).collect();
+    fn draw_tabs(&self, frame: &mut Frame, area: Rect) {
+        let titles: Vec<&str> = View::ALL.iter().map(|v| v.title()).collect();
+        let tabs = Tabs::new(titles)
+            .select(self.state.selected_tab)
+            .highlight_style(Style::default().fg(Color::Yellow).bold());
+        frame.render_widget(tabs, area);
+    }
 
-        let tabs_widget = Tabs::new(tabs)
-            .block(Block::default().borders(Borders::BOTTOM))
-            .highlight_style(Style::default().fg(Color::Yellow).bold())
-            .select(self.state.selected_tab);
-
-        frame.render_widget(tabs_widget, area);
+    fn draw_status(&self, frame: &mut Frame, area: Rect) {
+        let status = Paragraph::new(self.state.status_line.clone())
+            .style(Style::default().fg(Color::Cyan));
+        frame.render_widget(status, area);
     }
 
     fn draw_body(&self, frame: &mut Frame, area: Rect) {
@@ -281,130 +320,182 @@ impl App {
         }
     }
 
-    fn draw_footer(&self, frame: &mut Frame, area: Rect) {
-        let layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(area);
-
-        let help =
-            Paragraph::new("[←/→] Tab  [1-5] Jump  [a] Algo  [+/-] Cut  [↵] Run  [q/Ctrl+C] Quit")
-                .style(Style::default().fg(Color::Gray));
-        frame.render_widget(help, layout[0]);
-
-        let status = Paragraph::new(self.state.last_action.clone())
-            .style(Style::default().fg(Color::Cyan))
-            .block(Block::default().borders(Borders::LEFT));
-        frame.render_widget(status, layout[1]);
-    }
-
     fn draw_dashboard(&self, frame: &mut Frame, area: Rect) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(8), Constraint::Min(3)])
-            .split(area);
+        let block = Block::default().borders(Borders::ALL).title(" AMP ");
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
 
-        let art = Paragraph::new(
-            "   ___    __  __  ____\n  / _ |  / / / / / __/\n / __ | / /_/ / _\\ \\\
-/_/ |_| \\____/ /___/\n\nAddress → Miljözone → Parking",
-        )
-        .block(Block::default().borders(Borders::ALL).title(" amp-server "))
-        .alignment(Alignment::Center);
-        frame.render_widget(art, chunks[0]);
+        let text = "   ___    __  __  ____\n  / _ |  / / / / / __/\n / __ | / /_/ / _\\ \\\
+/_/ |_| \\____/ /___/\n\nAddress → Miljözone → Parking\n\nNavigate: [1-5] or [← →]\nControls: [a] Algorithm  [+/-] Cutoff  [Enter] Run\nExit: [q] or [Ctrl+C]";
 
-        let info = Paragraph::new(
-            "Select a tab to correlate addresses, run browser tests, benchmark algorithms, or check for Malmö data updates."
-        )
-        .block(Block::default().borders(Borders::ALL).title(" Getting Started "))
-        .wrap(Wrap { trim: true });
-        frame.render_widget(info, chunks[1]);
+        let p = Paragraph::new(text).alignment(Alignment::Center);
+        frame.render_widget(p, inner);
     }
 
     fn draw_correlate(&self, frame: &mut Frame, area: Rect) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
+        // Responsive constraints based on available height
+        let constraints = if area.height > 15 {
+            vec![
+                Constraint::Length(4),
+                Constraint::Length(3),
+                Constraint::Min(5),
+            ]
+        } else if area.height > 10 {
+            vec![
                 Constraint::Length(3),
                 Constraint::Length(2),
-                Constraint::Min(5),
-            ])
+                Constraint::Min(3),
+            ]
+        } else {
+            vec![
+                Constraint::Length(2),
+                Constraint::Length(1),
+                Constraint::Min(2),
+            ]
+        };
+
+        let sections = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
             .split(area);
 
-        let config = Paragraph::new(format!(
-            "Algorithm: {} | Cutoff: {:.1}m | Press [Enter] to start",
+        // Config box
+        let config_text = format!(
+            "Algorithm: {} | Cutoff: {:.1}m\nPress [Enter]",
             self.state.selected_algorithm.label(),
             self.state.cutoff,
-        ))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" Configuration "),
         );
-        frame.render_widget(config, chunks[0]);
+        let config = Paragraph::new(config_text)
+            .block(Block::default().borders(Borders::ALL).title(" Config "));
+        frame.render_widget(config, sections[0]);
 
+        // Progress bar
         let gauge = Gauge::default()
             .block(Block::default().borders(Borders::ALL))
             .gauge_style(Style::default().fg(Color::Cyan))
-            .percent((self.state.progress * 100.0) as u16)
-            .label(format!("{:.0}%", self.state.progress * 100.0));
-        frame.render_widget(gauge, chunks[1]);
+            .percent((self.state.correlate_state.progress * 100.0) as u16);
+        frame.render_widget(gauge, sections[1]);
 
-        let results_text = if self.state.correlation_results.is_empty() {
-            "No results yet".to_string()
+        // Output - persists when switching tabs
+        let output_items: Vec<ListItem> = self.state.correlate_state.output_lines
+            .iter()
+            .take(100)  // limit to prevent performance issues
+            .map(|line| ListItem::new(line.as_str()))
+            .collect();
+
+        let results_text = if self.state.correlate_state.results.is_empty() {
+            "(no results)".to_string()
         } else {
-            format!(
-                "Found {} correlations",
-                self.state.correlation_results.len()
-            )
+            format!("({} found)", self.state.correlate_state.results.len())
         };
 
-        let results = Paragraph::new(results_text)
-            .block(Block::default().borders(Borders::ALL).title(" Results "));
-        frame.render_widget(results, chunks[2]);
+        let output_list = List::new(output_items)
+            .block(Block::default().borders(Borders::ALL).title(format!(" Results {} ", results_text)));
+        frame.render_widget(output_list, sections[2]);
     }
 
     fn draw_test(&self, frame: &mut Frame, area: Rect) {
-        let p = Paragraph::new(format!(
-            "Algorithm: {}\nCutoff: {:.1}m\n\nPress [Enter] to launch browser-based testing (opens browser windows).",
+        let constraints = if area.height > 10 {
+            vec![Constraint::Length(3), Constraint::Min(4)]
+        } else {
+            vec![Constraint::Length(2), Constraint::Min(2)]
+        };
+
+        let sections = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(area);
+
+        // Config
+        let config_text = format!(
+            "Algorithm: {} | Cutoff: {:.1}m | [Enter] to run",
             self.state.selected_algorithm.label(),
             self.state.cutoff,
-        ))
-        .block(Block::default().borders(Borders::ALL).title(" Browser Test Mode "))
-        .wrap(Wrap { trim: true });
-        frame.render_widget(p, area);
+        );
+        let config = Paragraph::new(config_text)
+            .block(Block::default().borders(Borders::ALL).title(" Config "));
+        frame.render_widget(config, sections[0]);
+
+        // Output (persists)
+        let output_items: Vec<ListItem> = self.state.test_state.output_lines
+            .iter()
+            .take(100)
+            .map(|line| ListItem::new(line.as_str()))
+            .collect();
+
+        let output_list = List::new(output_items)
+            .block(Block::default().borders(Borders::ALL).title(" Output "));
+        frame.render_widget(output_list, sections[1]);
     }
 
     fn draw_benchmark(&self, frame: &mut Frame, area: Rect) {
-        let chunks = Layout::default()
+        let constraints = if area.height > 10 {
+            vec![Constraint::Length(3), Constraint::Min(4)]
+        } else {
+            vec![Constraint::Length(2), Constraint::Min(2)]
+        };
+
+        let sections = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(5)])
+            .constraints(constraints)
             .split(area);
 
-        let config = Paragraph::new(format!(
-            "Cutoff: {:.1}m | Press [Enter] to benchmark all 6 algorithms",
+        // Config
+        let config_text = format!(
+            "Cutoff: {:.1}m | [Enter] to benchmark all 6 algorithms",
             self.state.cutoff,
-        ))
-        .block(Block::default().borders(Borders::ALL).title(" Benchmark "));
-        frame.render_widget(config, chunks[0]);
+        );
+        let config = Paragraph::new(config_text)
+            .block(Block::default().borders(Borders::ALL).title(" Config "));
+        frame.render_widget(config, sections[0]);
 
-        let block = Paragraph::new("Results will appear in console output")
-            .block(Block::default().borders(Borders::ALL).title(" Results "));
-        frame.render_widget(block, chunks[1]);
+        // Output (persists)
+        let output_items: Vec<ListItem> = self.state.benchmark_state.output_lines
+            .iter()
+            .take(100)
+            .map(|line| ListItem::new(line.as_str()))
+            .collect();
+
+        let output_list = List::new(output_items)
+            .block(Block::default().borders(Borders::ALL).title(" Output "));
+        frame.render_widget(output_list, sections[1]);
     }
 
     fn draw_updates(&self, frame: &mut Frame, area: Rect) {
-        let p = Paragraph::new(
-            "Press [Enter] to check Malmö open data portal for updates to addresses, environmental zones, and parking regulations."
-        )
-        .block(Block::default().borders(Borders::ALL).title(" Data Updates "))
-        .wrap(Wrap { trim: true });
-        frame.render_widget(p, area);
+        let constraints = if area.height > 10 {
+            vec![Constraint::Length(2), Constraint::Min(4)]
+        } else {
+            vec![Constraint::Length(1), Constraint::Min(2)]
+        };
+
+        let sections = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(area);
+
+        // Config
+        let config_text = "[Enter] to check Malmö data portal";
+        let config = Paragraph::new(config_text)
+            .block(Block::default().borders(Borders::ALL).title(" Config "));
+        frame.render_widget(config, sections[0]);
+
+        // Output (persists)
+        let output_items: Vec<ListItem> = self.state.updates_state.output_lines
+            .iter()
+            .take(100)
+            .map(|line| ListItem::new(line.as_str()))
+            .collect();
+
+        let output_list = List::new(output_items)
+            .block(Block::default().borders(Borders::ALL).title(" Output "));
+        frame.render_widget(output_list, sections[1]);
     }
 
     fn run_correlation(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.state.is_running = true;
-        self.state.progress = 0.0;
-        self.state.last_action = "Running correlation...".to_string();
+        self.state.correlate_state.progress = 0.0;
+        self.state.correlate_state.output_lines.clear();
+        self.state.correlate_state.output_lines.push("Starting correlation...".to_string());
+        self.state.status_line = "Correlating...".to_string();
 
         let (addresses, miljodata, parkering): (
             Vec<AdressClean>,
@@ -412,37 +503,36 @@ impl App {
             Vec<MiljoeDataClean>,
         ) = api()?;
 
-        let cutoff = self.state.cutoff;
-        let algorithm = self.state.selected_algorithm;
-
         let total = addresses.len();
         let mut counter = 0usize;
 
         let miljo_results = self.correlate_dataset(
-            algorithm,
+            self.state.selected_algorithm,
             &addresses,
             &miljodata,
-            cutoff,
-            &mut counter,
-            total,
-        )?;
-        let parkering_results = self.correlate_dataset(
-            algorithm,
-            &addresses,
-            &parkering,
-            cutoff,
+            self.state.cutoff,
             &mut counter,
             total,
         )?;
 
-        self.state.correlation_results =
+        self.state.correlate_state.output_lines.push(format!("Miljodata: {}", miljo_results.len()));
+
+        let parkering_results = self.correlate_dataset(
+            self.state.selected_algorithm,
+            &addresses,
+            &parkering,
+            self.state.cutoff,
+            &mut counter,
+            total,
+        )?;
+
+        self.state.correlate_state.output_lines.push(format!("Parkering: {}", parkering_results.len()));
+
+        self.state.correlate_state.results =
             self.merge_results(&addresses, &miljo_results, &parkering_results);
-        self.state.is_running = false;
-        self.state.progress = 1.0;
-        self.state.last_action = format!(
-            "Correlation complete: {} matches",
-            self.state.correlation_results.len()
-        );
+        self.state.correlate_state.progress = 1.0;
+        self.state.correlate_state.output_lines.push(format!("Total: {}", self.state.correlate_state.results.len()));
+        self.state.status_line = format!("Done: {} results", self.state.correlate_state.results.len());
 
         Ok(())
     }
@@ -462,79 +552,79 @@ impl App {
             AlgorithmChoice::DistanceBased => {
                 let algo = DistanceBasedAlgo;
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones)
-                        && dist <= cutoff
-                    {
-                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-                        results.push((addr.adress.clone(), dist, info));
+                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
+                        if dist <= cutoff {
+                            let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+                            results.push((addr.adress.clone(), dist, info));
+                        }
                     }
                     *counter += 1;
-                    self.state.progress = *counter as f64 / total as f64;
+                    self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
             }
             AlgorithmChoice::Raycasting => {
                 let algo = RaycastingAlgo;
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones)
-                        && dist <= cutoff
-                    {
-                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-                        results.push((addr.adress.clone(), dist, info));
+                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
+                        if dist <= cutoff {
+                            let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+                            results.push((addr.adress.clone(), dist, info));
+                        }
                     }
                     *counter += 1;
-                    self.state.progress = *counter as f64 / total as f64;
+                    self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
             }
             AlgorithmChoice::OverlappingChunks => {
                 let algo = OverlappingChunksAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones)
-                        && dist <= cutoff
-                    {
-                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-                        results.push((addr.adress.clone(), dist, info));
+                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
+                        if dist <= cutoff {
+                            let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+                            results.push((addr.adress.clone(), dist, info));
+                        }
                     }
                     *counter += 1;
-                    self.state.progress = *counter as f64 / total as f64;
+                    self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
             }
             AlgorithmChoice::RTree => {
                 let algo = RTreeSpatialAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones)
-                        && dist <= cutoff
-                    {
-                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-                        results.push((addr.adress.clone(), dist, info));
+                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
+                        if dist <= cutoff {
+                            let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+                            results.push((addr.adress.clone(), dist, info));
+                        }
                     }
                     *counter += 1;
-                    self.state.progress = *counter as f64 / total as f64;
+                    self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
             }
             AlgorithmChoice::KDTree => {
                 let algo = KDTreeSpatialAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones)
-                        && dist <= cutoff
-                    {
-                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-                        results.push((addr.adress.clone(), dist, info));
+                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
+                        if dist <= cutoff {
+                            let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+                            results.push((addr.adress.clone(), dist, info));
+                        }
                     }
                     *counter += 1;
-                    self.state.progress = *counter as f64 / total as f64;
+                    self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
             }
             AlgorithmChoice::Grid => {
                 let algo = GridNearestAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones)
-                        && dist <= cutoff
-                    {
-                        let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
-                        results.push((addr.adress.clone(), dist, info));
+                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
+                        if dist <= cutoff {
+                            let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
+                            results.push((addr.adress.clone(), dist, info));
+                        }
                     }
                     *counter += 1;
-                    self.state.progress = *counter as f64 / total as f64;
+                    self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
             }
         }
@@ -579,24 +669,38 @@ impl App {
     }
 
     fn run_test_mode(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.state.last_action =
-            "Launching browser-based test mode (see external windows)...".into();
+        self.state.test_state.output_lines.clear();
+        self.state.test_state.output_lines.push("Launching browser...".to_string());
+        self.state.status_line = "Opening browser...".to_string();
+
         classification::run_test_mode_legacy(self.state.selected_algorithm, self.state.cutoff)?;
-        self.state.last_action = "Browser test mode complete".into();
+
+        self.state.test_state.output_lines.push("Complete".to_string());
+        self.state.status_line = "Test complete";
         Ok(())
     }
 
     fn run_benchmark(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.state.last_action = "Running benchmark in external logging (see stdout)...".into();
+        self.state.benchmark_state.output_lines.clear();
+        self.state.benchmark_state.output_lines.push("Starting benchmark...".to_string());
+        self.state.status_line = "Benchmarking...".to_string();
+
         classification::run_benchmark_legacy(self.state.cutoff)?;
-        self.state.last_action = "Benchmark complete".into();
+
+        self.state.benchmark_state.output_lines.push("Complete".to_string());
+        self.state.status_line = "Benchmark done";
         Ok(())
     }
 
     fn run_update_check(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.state.last_action = "Checking remote data for updates...".into();
+        self.state.updates_state.output_lines.clear();
+        self.state.updates_state.output_lines.push("Checking updates...".to_string());
+        self.state.status_line = "Checking updates...".to_string();
+
         classification::run_check_updates_legacy()?;
-        self.state.last_action = "Update check complete".into();
+
+        self.state.updates_state.output_lines.push("Complete".to_string());
+        self.state.status_line = "Check complete";
         Ok(())
     }
 }

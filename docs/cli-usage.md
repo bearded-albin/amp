@@ -1,238 +1,452 @@
 # CLI Usage
 
-The `amp-server` CLI provides correlation, benchmarking, and data verification commands.
+The AMP server provides several commands for correlation, testing, benchmarking, and data management.
 
-## Installation
+## Overview
 
 ```bash
-cargo install --path server
-# Or
-cargo build --release -p amp_server
-./target/release/amp-server --help
+amp-server <COMMAND> [OPTIONS]
 ```
 
 ## Commands
 
-### correlate
+- `correlate` — Run full address-to-zone correlation
+- `test` — Visual testing mode with browser automation
+- `benchmark` — Performance testing of algorithms
+- `check-updates` — Check if data needs updating
 
-Run address-to-zone correlation with specified algorithm.
+---
+
+## `correlate` Command
+
+Run correlation on all addresses using specified algorithm and distance threshold.
+
+### Usage
 
 ```bash
-amp-server correlate [OPTIONS]
+cargo run --release -p amp_server -- correlate [OPTIONS]
 ```
 
-**Options:**
-- `-a, --algorithm <NAME>` — Algorithm to use (default: rtree)
-  - `distance-based` — Brute-force O(n×m)
-  - `raycasting` — 36-ray search
-  - `overlapping-chunks` — Spatial grid with overlap
-  - `rtree` — R-tree spatial index
-  - `kdtree` — KD-tree spatial index
-  - `grid` — Fixed-size grid
+### Options
 
-**Example:**
+#### `--algorithm` / `-a`
+Choose correlation algorithm (default: `kdtree`)
 
 ```bash
-$ amp-server correlate --algorithm rtree
+cargo run -- correlate --algorithm rtree
+```
 
-📋 Dataset Information:
-   Addresses: 100,342
-   Miljödata zones: 1,847
-   Parkering zones: 3,256
-   Max distance threshold: 50 meters
+Available algorithms:
+- `distance-based` — O(n×m) brute-force, small datasets
+- `raycasting` — Geometric ray intersection method
+- `overlapping-chunks` — Grid-based spatial chunking
+- `rtree` — R-tree spatial index, general purpose
+- `kdtree` — KD-tree spatial index, recommended
+- `grid` — Fixed grid with nearest neighbor
 
-🚀 Running correlation with RTree algorithm
-[████████████████████] 100342/100342 100% ✓ Completed in 2.31s
+#### `--cutoff` / `-c`
+Distance threshold in meters (default: `50`)
+
+```bash
+# Only include matches within 75 meters
+cargo run -- correlate --cutoff 75
+```
+
+Affects which addresses are included in results. Only matches within cutoff distance counted.
+
+### Output
+
+Displays:
+- Total addresses processed
+- Number of matches found
+- Matches exceeding cutoff threshold (if any)
+- 10 addresses with largest distances
+- Execution time and memory usage
+
+**Example:**
+```
+🚀 Loading data from ArcGIS API...
+   Addresses: 147,832
+   Miljö zones: 8,247
+   Parkering zones: 3,156
+
+🔐 Running KDTree correlation...
+   ✓ Finished in 3.42s
 
 📊 Results:
-   Addresses processed: 100,342
-   Total matches: 87,234 (86.9%)
-   ├─ Both datasets: 12,456 (12.4%)
-   ├─ Miljödata only: 34,567 (34.4%)
-   ├─ Parkering only: 40,211 (40.1%)
-   └─ No match: 13,108 (13.1%)
-   Average time per address: 23.02µs
+   Total matches: 98,436 (66.6% of addresses)
+   All within 50m threshold
+   
+   Addresses with largest distances:
+   - Sophiahemmet 1: 49.8m (Miljö)
+   - Universitetsplåtsen 1: 48.3m (Miljö)
+   ...
 ```
 
-**Output:**
-- Match statistics by dataset
-- Random sample of 10 matches
-- Top 10 largest distances (threshold verification)
-
-### benchmark
-
-Compare performance of all six algorithms.
+### Examples
 
 ```bash
-amp-server benchmark [OPTIONS]
+# Default: KD-Tree, 50m threshold
+cargo run --release -- correlate
+
+# R-Tree with 100m threshold
+cargo run -- correlate --algorithm rtree --cutoff 100
+
+# Compare algorithms
+cargo run -- correlate --algorithm kdtree
+cargo run -- correlate --algorithm rtree
+
+# Conservative (fewer matches)
+cargo run -- correlate --cutoff 25
+
+# Permissive (more matches)
+cargo run -- correlate --cutoff 100
 ```
 
-**Options:**
-- `-s, --sample-size <N>` — Number of addresses to test (default: 100)
+---
 
-**Example:**
+## `test` Command
+
+Visual testing mode opens browser windows for manual verification against StadsAtlas.
+
+### Usage
 
 ```bash
-$ amp-server benchmark --sample-size 500
+cargo run --release -p amp_server -- test [OPTIONS]
+```
 
-🏁 Benchmarking all 6 algorithms with 500 samples
+### Options
 
-[Distance-Based    ] [██████████] 500/500 ✓ 2.45s
-[Raycasting        ] [██████████] 500/500 ✓ 5.12s
-[Overlapping Chunks] [██████████] 500/500 ✓ 1.23s
-[R-Tree            ] [██████████] 500/500 ✓ 1.15s
-[KD-Tree           ] [██████████] 500/500 ✓ 1.28s
-[Grid              ] [██████████] 500/500 ✓ 1.31s
+#### `--algorithm` / `-a`
+Choose algorithm (default: `kdtree`)
 
-📊 Benchmark Results:
+```bash
+cargo run -- test --algorithm rtree
+```
+
+#### `--cutoff` / `-c`
+Distance threshold in meters (default: `50`)
+
+```bash
+# Only include addresses within 100 meters of zones
+cargo run -- test --cutoff 100
+```
+
+#### `--windows` / `-w`
+Number of browser windows to open (default: `10`)
+
+```bash
+# Open 20 windows
+cargo run -- test --windows 20
+
+# Single window for quick test
+cargo run -- test --windows 1
+```
+
+### What Happens
+
+For each selected address:
+1. Opens 2-tab browser window
+2. **Tab 1:** Official Malmö StadsAtlas map
+   - Shows address location with blue pin
+   - You manually enable "Miljöparkering" checkbox
+   - You enter address in search bar to see regulations
+3. **Tab 2:** Correlation result details
+   - Shows matched zone and distance
+   - Compare with Tab 1 StadsAtlas display
+
+### Examples
+
+```bash
+# Default test (10 windows, KD-Tree, 50m)
+cargo run --release -- test
+
+# Quick test (5 windows)
+cargo run -- test --windows 5
+
+# Compare algorithms
+cargo run -- test --algorithm kdtree --windows 10
+cargo run -- test --algorithm rtree --windows 10
+
+# Validate distance thresholds
+cargo run -- test --cutoff 25 --windows 5
+cargo run -- test --cutoff 50 --windows 5
+cargo run -- test --cutoff 100 --windows 5
+
+# Large-scale test
+cargo run -- test --algorithm kdtree --cutoff 50 --windows 50
+```
+
+### Interpreting Results
+
+For each opened window:
+
+**Good Match** ✅
+- StadsAtlas shows same zone as Tab 2
+- Distance seems reasonable (e.g., 15.3m)
+- Zone regulations visible and correct
+
+**Poor Match** ⚠️
+- StadsAtlas shows different zone
+- Distance at cutoff boundary (e.g., 49.8m)
+- Zone regulations don't match visible features
+
+**No Match** ❌
+- Tab 2 shows "No matches found"
+- Address is outside all zones or beyond cutoff
+
+See [testing.md](testing.md#interpreting-results) for detailed guidance.
+
+---
+
+## `benchmark` Command
+
+Interactively benchmark all algorithms on sample data.
+
+### Usage
+
+```bash
+cargo run --release -p amp_server -- benchmark [OPTIONS]
+```
+
+### Options
+
+#### `--sample-size` / `-s`
+Number of addresses to test (default: `100`)
+
+```bash
+# Benchmark on 1000 addresses
+cargo run -- benchmark --sample-size 1000
+```
+
+If sample size exceeds available addresses, uses all available.
+
+#### `--cutoff` / `-c`
+Distance threshold in meters (default: `50`)
+
+```bash
+# Benchmark with 100m threshold
+cargo run -- benchmark --cutoff 100
+```
+
+### Workflow
+
+1. Prompts you to select which algorithms to benchmark
+2. Runs each algorithm on same sample data
+3. Displays timing and match count for each
+4. Allows selecting different sample size
+
+### Example Output
+
+```
+Benchmark Results (1000 addresses, 50m threshold):
 
 Algorithm            Total Time    Avg/Address    Matches
-──────────────────────────────────────────────────────
-Distance-Based       2.45s         4.90ms         423
-Raycasting          5.12s         10.24ms        431
-Overlapping Chunks  1.23s         2.46ms         423
-R-Tree              1.15s         2.30ms         423
-KD-Tree             1.28s         2.56ms         423
-Grid                1.31s         2.62ms         423
+───────────────────────────────────
+R-Tree               1.15s         1.15ms         667
+KD-Tree              0.92s         0.92ms         667
+Raycasting           2.34s         2.34ms         667
+Distance-Based       3.87s         3.87ms         667
+Overlapping Chunks   1.42s         1.42ms         667
+Grid                 4.12s         4.12ms         667
 
-✓ Fastest: R-Tree (1.15s)
+Recommendation: KD-Tree offers best balance of speed and simplicity
 ```
 
-### check-updates
-
-Verify if Malmö's open data has changed.
+### Examples
 
 ```bash
-amp-server check-updates [OPTIONS]
+# Default: interactive selection, 100 addresses
+cargo run --release -- benchmark
+
+# Larger sample
+cargo run -- benchmark --sample-size 500
+
+# With custom cutoff
+cargo run -- benchmark --sample-size 1000 --cutoff 100
 ```
 
-**Options:**
-- `-c, --checksum-file <PATH>` — Checksum file (default: checksums.json)
+---
 
-**Example:**
+## `check-updates` Command
+
+Verify if data has been updated by comparing checksums.
+
+### Usage
 
 ```bash
-$ amp-server check-updates
-
-🔍 Checking for data updates...
-
-✓ Data fetched
-
-✓ Data has changed!
-  Old checksums from: 2026-01-22T10:15:30Z
-  New checksums from: 2026-01-23T10:15:30Z
-✓ Checksums saved to checksums.json
+cargo run --release -p amp_server -- check-updates
 ```
 
-**Checksum File Format:**
+### What It Does
 
-```json
-{
-  "miljoparkering": "a3f5e8...",
-  "parkeringsavgifter": "b2d9c1...",
-  "adresser": "f7e4a2...",
-  "last_checked": "2026-01-23T10:15:30Z"
-}
+1. Fetches current checksums from ArcGIS API
+2. Compares with stored checksums (if available)
+3. Reports any changes
+
+### Example Output
+
+```
+🔄 Checking for data updates...
+
+✅ Miljöparkering: No changes
+✅ Parkeringsavgifter: No changes  
+✅ Adresser: No changes
+
+All datasets current as of 2026-01-27
+Last update: 2025-12-15
 ```
 
-**Use Cases:**
-- Daily cron job to monitor data changes
-- CI/CD pipeline validation
-- Manual verification before deployment
+Or if updates exist:
+```
+⚠️  Miljöparkering: CHANGED (last updated 2025-12-25)
+⚠️  Parkeringsavgifter: CHANGED (last updated 2025-12-18)
+✅ Adresser: No changes
 
-## Common Workflows
+Action: Re-run correlate command to fetch latest data
+```
 
-### Quick Test
+---
+
+## Injection System
+
+The testing mode includes an automated StadsAtlas injection system that:
+
+1. **Navigates to StadsAtlas** at https://stadsatlas.malmo.se/
+2. **Enables the Miljöparkering layer** (environmental parking zones)
+3. **Injects the test address** into the search field
+4. **Displays results** for manual comparison
+
+### How It Works
+
+**5-Phase Execution:**
+
+1. **Click menu button** → Opens layer control panel
+2. **Find Miljöparkering layer** → Searches DOM for layer name
+3. **Toggle layer visibility** → Enables parking zone display
+4. **Find search input** → Tries 8 different CSS selectors
+5. **Inject address** → Populates search field and triggers search
+
+### Debug Mode
+
+While testing window is open, browser console provides:
+
+```javascript
+// Check current phase
+window.ampInjection.phase()  // Returns 1-5
+
+// View page state
+window.ampInjection.debug()  // Shows elements found
+
+// Manually retry
+window.ampInjection.retry()  // Restart injection
+```
+
+### Console Logging
+
+All injection logs prefixed with `[AMP]` for easy filtering:
+
+```
+[AMP] Injection script initialized. Debug: window.ampInjection
+[AMP] Page loaded, starting injection sequence...
+[AMP] Phase 1: Clicking menu button
+[AMP] ✓ Found menu button, clicking...
+[AMP] Phase 2: Looking for Miljöparkering layer...
+[AMP] ✓ Found layer, enabling...
+[AMP] Phase 3: Toggling layer visibility
+[AMP] Phase 4: Finding search input
+[AMP] ✓ Found search field
+[AMP] Phase 5: Injecting address
+[AMP] ✓ Address injected and search triggered
+```
+
+### Fallback Strategies
+
+If layer not found, system tries multiple fallbacks:
+- 8 different CSS selectors for search input
+- Automatic retry logic with exponential backoff
+- 15-second timeout with phase tracking
+- Graceful degradation if elements can't be found
+
+See [implementation-notes.md](implementation-notes.md) for technical details.
+
+---
+
+## Quick Reference
+
+### Most Common Commands
 
 ```bash
-# Fast correlation check
-amp-server correlate --algorithm rtree
+# Test mode (default settings)
+cargo run --release -- test
+
+# Full correlation run
+cargo run --release -- correlate
+
+# Benchmark all algorithms
+cargo run --release -- benchmark
+
+# Check for data updates
+cargo run -- check-updates
 ```
 
-### Algorithm Comparison
+### Command Cheat Sheet
 
 ```bash
-# Small sample for quick comparison
-amp-server benchmark --sample-size 100
+# Test with different algorithms
+cargo run -- test -a kdtree  # KD-Tree
+cargo run -- test -a rtree   # R-Tree
+cargo run -- test -a raycasting  # Raycasting
 
-# Large sample for accurate results
-amp-server benchmark --sample-size 5000
+# Test with different cutoffs
+cargo run -- test -c 25   # Conservative
+cargo run -- test -c 50   # Standard
+cargo run -- test -c 100  # Permissive
+
+# Combine options
+cargo run -- test -a rtree -c 100 -w 20
 ```
 
-### Production Deployment
+---
+
+## Building for Release
 
 ```bash
-# 1. Check for data updates
-amp-server check-updates
+# Optimized binary
+cargo build --release -p amp_server
 
-# 2. Run correlation with best algorithm
-amp-server correlate --algorithm rtree
+# Binary location
+./target/release/amp-server
 
-# 3. Verify results (examine output statistics)
-```
-
-### Daily Monitoring
-
-```bash
-#!/bin/bash
-# daily-check.sh
-
-if amp-server check-updates; then
-    echo "Data updated, re-running correlation"
-    amp-server correlate --algorithm rtree
-fi
-```
-
-## Environment Variables
-
-None required. All data fetched from public Malmö Open Data Portal.
-
-## Output Files
-
-- `checksums.json` — Data verification checksums
-- stdout — Correlation results (pipe to file if needed)
-
-## Performance Tips
-
-**For large datasets:**
-```bash
-# Use R-Tree or Overlapping Chunks
-amp-server correlate --algorithm rtree
-```
-
-**For benchmarking:**
-```bash
-# Start with small sample
-amp-server benchmark --sample-size 100
-
-# Increase for production validation
-amp-server benchmark --sample-size 1000
-```
-
-**For CI/CD:**
-```bash
-# Quick validation
-amp-server benchmark --sample-size 50
+# Run directly
+./target/release/amp-server correlate --algorithm rtree
 ```
 
 ## Troubleshooting
 
-**"No matches found"**
-- Check internet connection (ArcGIS API requires network)
-- Verify Malmö Open Data Portal is accessible
-- Try `check-updates` to confirm data availability
+**"No matching addresses found"**
+- Solution: Increase cutoff (`--cutoff 100`)
+- Or try different algorithm
 
-**"Slow performance"**
-- Use `--algorithm rtree` instead of `distance-based`
-- Reduce `--sample-size` for benchmarks
-- Consider memory constraints (Grid/Chunks use more RAM)
+**Windows not opening**
+- Windows: Check default browser configuration
+- macOS: Grant terminal permission to control applications
+- Linux: Ensure `xdg-open` is installed
 
-**"Checksum file not found"**
-- Normal on first run
-- File created automatically by `check-updates`
+**Data appears outdated**
+- Run: `cargo run -- check-updates`
+- If changed, re-run correlate to fetch latest
+
+**High memory usage**
+- R-Tree algorithm uses more memory than others
+- Try KD-Tree instead: `--algorithm kdtree`
+
+---
 
 ## Related Documentation
 
-- [Algorithms](algorithms.md) — Algorithm details
-- [Architecture](architecture.md) — System design
-- [server/README.md](../server/README.md) — Server module guide
+- [Testing Guide](testing.md) — Detailed testing procedures
+- [Algorithms](algorithms.md) — How each algorithm works
+- [API Integration](api-integration.md) — Data fetching
+- [Implementation Notes](implementation-notes.md) — Technical details
+- [Server README](../server/README.md) — Server deployment guide

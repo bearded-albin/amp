@@ -2,14 +2,12 @@ use crate::matching::{MatchResult, match_address, validate_input};
 use crate::static_data::StaticAddressEntry;
 use dioxus::prelude::*;
 
-#[derive(Clone, Debug, PartialEq)]
-#[derive(Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct AddressInputState {
     pub gata: String,
     pub gatunummer: String,
     pub postnummer: String,
 }
-
 
 #[derive(Clone, Debug)]
 pub enum ValidationStatus {

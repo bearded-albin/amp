@@ -1,5 +1,5 @@
+use amp_core::parquet::{ParkingRestriction, read_android_local_addresses};
 use std::collections::HashMap;
-use amp_core::parquet::{read_android_local_addresses, ParkingRestriction};
 
 // Type alias for backward compatibility with existing UI code
 pub type StaticAddressEntry = ParkingRestriction;

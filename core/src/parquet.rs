@@ -19,10 +19,10 @@ pub struct ParkingRestriction {
     pub gata: String,
     pub gatunummer: String,
     pub postnummer: u16,
-    pub adress: String,   // Full address (gata + gatunummer)
-    pub dag: u8,          // Day of month (1-31)
-    pub tid: String,      // Time interval "HHMM-HHMM"
-    pub info: String,     // Restriction info
+    pub adress: String, // Full address (gata + gatunummer)
+    pub dag: u8,        // Day of month (1-31)
+    pub tid: String,    // Time interval "HHMM-HHMM"
+    pub info: String,   // Restriction info
 }
 
 /// Read correlation results from parquet file

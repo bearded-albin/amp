@@ -35,8 +35,7 @@ pub fn App() -> Element {
 
     // Initialize with sample data for testing
     use_effect(move || {
-        if !addresses.read().is_empty() {
-        }
+        if !addresses.read().is_empty() {}
         // TODO: Initialize with sample data or from persistent storage
     });
 

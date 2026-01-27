@@ -1,12 +1,12 @@
 use crate::static_data::{StaticAddressEntry, load_parquet_data};
-use std::sync::OnceLock;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 // Lazy-load the parking data once on first use
 static PARKING_DATA: OnceLock<HashMap<String, StaticAddressEntry>> = OnceLock::new();
 
 fn get_parking_data() -> &'static HashMap<String, StaticAddressEntry> {
-    PARKING_DATA.get_or_init(|| load_parquet_data())
+    PARKING_DATA.get_or_init(load_parquet_data)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -28,12 +28,13 @@ pub enum MatchResult {
 ///
 /// # Returns
 /// MatchResult::Valid with address data if found, MatchResult::Invalid otherwise
-pub fn match_address(
-    gata: &str,
-    gatunummer: &str,
-    postnummer: &str,
-) -> MatchResult {
-    let key = format!("{} {}-{}", gata.trim(), gatunummer.trim(), postnummer.trim());
+pub fn match_address(gata: &str, gatunummer: &str, postnummer: &str) -> MatchResult {
+    let key = format!(
+        "{} {}-{}",
+        gata.trim(),
+        gatunummer.trim(),
+        postnummer.trim()
+    );
     let data = get_parking_data();
 
     match data.get(&key) {

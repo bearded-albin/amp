@@ -4,19 +4,17 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     prelude::*,
-    widgets::{
-        Block, Borders, Gauge, Paragraph, Tabs,
-    },
+    widgets::{Block, Borders, Gauge, Paragraph, Tabs},
 };
 
-use crate::tui::Tui;
 use crate::classification;
+use crate::tui::Tui;
+use amp_core::api::api;
 use amp_core::correlation_algorithms::{
-    CorrelationAlgo, DistanceBasedAlgo, GridNearestAlgo, KDTreeSpatialAlgo,
-    OverlappingChunksAlgo, RTreeSpatialAlgo, RaycastingAlgo,
+    CorrelationAlgo, DistanceBasedAlgo, GridNearestAlgo, KDTreeSpatialAlgo, OverlappingChunksAlgo,
+    RTreeSpatialAlgo, RaycastingAlgo,
 };
 use amp_core::structs::{AdressClean, CorrelationResult, MiljoeDataClean};
-use amp_core::api::api;
 
 /// Type alias for correlation result tuples: (address, distance_meters, zone_info)
 type CorrelationTuple = (String, f64, String);
@@ -140,13 +138,11 @@ impl App {
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
 
-            if crossterm::event::poll(timeout)? {
-                if let Event::Key(key) = crossterm::event::read()? {
-                    if self.on_key(key)? {
+            if crossterm::event::poll(timeout)?
+                && let Event::Key(key) = crossterm::event::read()?
+                    && self.on_key(key)? {
                         break;
                     }
-                }
-            }
 
             if last_tick.elapsed() >= tick_rate {
                 self.on_tick()?;
@@ -220,23 +216,21 @@ impl App {
                     self.state.last_action = format!("Cutoff set to {:.1}m", self.state.cutoff);
                 }
             }
-            KeyCode::Enter => {
-                match self.state.view {
-                    View::Correlate => {
-                        self.run_correlation()?;
-                    }
-                    View::Test => {
-                        self.run_test_mode()?;
-                    }
-                    View::Benchmark => {
-                        self.run_benchmark()?;
-                    }
-                    View::Updates => {
-                        self.run_update_check()?;
-                    }
-                    View::Dashboard => {}
+            KeyCode::Enter => match self.state.view {
+                View::Correlate => {
+                    self.run_correlation()?;
                 }
-            }
+                View::Test => {
+                    self.run_test_mode()?;
+                }
+                View::Benchmark => {
+                    self.run_benchmark()?;
+                }
+                View::Updates => {
+                    self.run_update_check()?;
+                }
+                View::Dashboard => {}
+            },
             _ => {}
         }
 
@@ -292,10 +286,7 @@ impl App {
     fn draw_footer(&self, frame: &mut ratatui::Frame, area: Rect) {
         let layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ])
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(area);
 
         let help = Paragraph::new(
@@ -311,10 +302,7 @@ impl App {
     fn draw_dashboard(&self, frame: &mut ratatui::Frame, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(7),
-                Constraint::Min(3),
-            ])
+            .constraints([Constraint::Length(7), Constraint::Min(3)])
             .split(area);
 
         let art = Paragraph::new(
@@ -345,7 +333,11 @@ impl App {
             self.state.selected_algorithm.label(),
             self.state.cutoff,
         ))
-        .block(Block::default().borders(Borders::ALL).title(" Correlation Config "));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Correlation Config "),
+        );
         frame.render_widget(config, chunks[0]);
 
         let gauge = Gauge::default()
@@ -355,7 +347,9 @@ impl App {
             .label(format!("{:.1}%", self.state.progress * 100.0));
         frame.render_widget(gauge, chunks[1]);
 
-        let results_block = Block::default().borders(Borders::ALL).title(" Results (summary) ");
+        let results_block = Block::default()
+            .borders(Borders::ALL)
+            .title(" Results (summary) ");
         frame.render_widget(results_block, chunks[2]);
     }
 
@@ -372,10 +366,7 @@ impl App {
     fn draw_benchmark(&self, frame: &mut ratatui::Frame, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(4),
-                Constraint::Min(5),
-            ])
+            .constraints([Constraint::Length(4), Constraint::Min(5)])
             .split(area);
 
         let config = Paragraph::new(format!(
@@ -385,7 +376,9 @@ impl App {
         .block(Block::default().borders(Borders::ALL).title(" Benchmark Config "));
         frame.render_widget(config, chunks[0]);
 
-        let block = Block::default().borders(Borders::ALL).title(" Benchmark Results ");
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(" Benchmark Results ");
         frame.render_widget(block, chunks[1]);
     }
 
@@ -431,7 +424,8 @@ impl App {
             total,
         )?;
 
-        self.state.correlation_results = self.merge_results(&addresses, &miljo_results, &parkering_results);
+        self.state.correlation_results =
+            self.merge_results(&addresses, &miljo_results, &parkering_results);
         self.state.is_running = false;
         self.state.progress = 1.0;
         self.state.last_action = "Correlation complete".to_string();
@@ -454,12 +448,11 @@ impl App {
             AlgorithmChoice::DistanceBased => {
                 let algo = DistanceBasedAlgo;
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.progress = *counter as f64 / total as f64;
                 }
@@ -467,12 +460,11 @@ impl App {
             AlgorithmChoice::Raycasting => {
                 let algo = RaycastingAlgo;
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.progress = *counter as f64 / total as f64;
                 }
@@ -480,12 +472,11 @@ impl App {
             AlgorithmChoice::OverlappingChunks => {
                 let algo = OverlappingChunksAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.progress = *counter as f64 / total as f64;
                 }
@@ -493,12 +484,11 @@ impl App {
             AlgorithmChoice::RTree => {
                 let algo = RTreeSpatialAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.progress = *counter as f64 / total as f64;
                 }
@@ -506,12 +496,11 @@ impl App {
             AlgorithmChoice::KDTree => {
                 let algo = KDTreeSpatialAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.progress = *counter as f64 / total as f64;
                 }
@@ -519,12 +508,11 @@ impl App {
             AlgorithmChoice::Grid => {
                 let algo = GridNearestAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.progress = *counter as f64 / total as f64;
                 }
@@ -571,7 +559,8 @@ impl App {
     }
 
     fn run_test_mode(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.state.last_action = "Launching browser-based test mode (see external windows)...".into();
+        self.state.last_action =
+            "Launching browser-based test mode (see external windows)...".into();
         classification::run_test_mode_legacy(self.state.selected_algorithm, self.state.cutoff)?;
         Ok(())
     }

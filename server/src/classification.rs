@@ -3,8 +3,8 @@ use amp_core::api::api;
 use amp_core::benchmark::Benchmarker;
 use amp_core::checksum::DataChecksum;
 use amp_core::correlation_algorithms::{
-    CorrelationAlgo, DistanceBasedAlgo, GridNearestAlgo, KDTreeSpatialAlgo,
-    OverlappingChunksAlgo, RTreeSpatialAlgo, RaycastingAlgo,
+    CorrelationAlgo, DistanceBasedAlgo, GridNearestAlgo, KDTreeSpatialAlgo, OverlappingChunksAlgo,
+    RTreeSpatialAlgo, RaycastingAlgo,
 };
 use amp_core::structs::{AdressClean, CorrelationResult, MiljoeDataClean};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 /// Standard distance cutoff used everywhere (was 50m, now 20m)
-pub const STANDARD_CUTOFF_METERS: f64 = 20.0;
+pub const _STANDARD_CUTOFF_METERS: f64 = 20.0;
 
 /// Type alias for correlation result tuples: (address, distance_meters, zone_info)
 type CorrelationTuple = (String, f64, String);
@@ -81,7 +81,8 @@ pub fn run_benchmark_legacy(cutoff: f64) -> Result<(), Box<dyn std::error::Error
         })
         .collect();
 
-    let results = benchmark_selected_with_progress(&benchmarker, sample_size, &selected_algos, &pbs);
+    let results =
+        benchmark_selected_with_progress(&benchmarker, sample_size, &selected_algos, &pbs);
 
     for pb in pbs {
         pb.finish_and_clear();
@@ -148,24 +149,12 @@ fn correlate_dataset_for_browser(
     let counter = Arc::new(AtomicUsize::new(0));
 
     let counter1 = counter.clone();
-    let miljo_results = correlate_dataset(
-        &algorithm,
-        addresses,
-        miljodata,
-        cutoff,
-        &counter1,
-        total,
-    )?;
+    let miljo_results =
+        correlate_dataset(&algorithm, addresses, miljodata, cutoff, &counter1, total)?;
 
     let counter2 = counter.clone();
-    let parkering_results = correlate_dataset(
-        &algorithm,
-        addresses,
-        parkering,
-        cutoff,
-        &counter2,
-        total,
-    )?;
+    let parkering_results =
+        correlate_dataset(&algorithm, addresses, parkering, cutoff, &counter2, total)?;
 
     Ok(merge_results(addresses, &miljo_results, &parkering_results))
 }
@@ -185,14 +174,13 @@ fn correlate_dataset(
         AlgorithmChoice::DistanceBased => {
             let algo = DistanceBasedAlgo;
             for addr in addresses {
-                if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                    if dist <= cutoff {
+                if let Some((idx, dist)) = algo.correlate(addr, zones)
+                    && dist <= cutoff {
                         let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                         results.push((addr.adress.clone(), dist, info));
                     }
-                }
                 let cnt = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                if cnt % 10_000 == 0 || cnt == total {
+                if cnt.is_multiple_of(10_000) || cnt == total {
                     let pct = (cnt as f64 / total as f64) * 100.0;
                     println!("[test] Progress: {:.1}% ({}/{})", pct, cnt, total);
                 }
@@ -201,14 +189,13 @@ fn correlate_dataset(
         AlgorithmChoice::Raycasting => {
             let algo = RaycastingAlgo;
             for addr in addresses {
-                if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                    if dist <= cutoff {
+                if let Some((idx, dist)) = algo.correlate(addr, zones)
+                    && dist <= cutoff {
                         let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                         results.push((addr.adress.clone(), dist, info));
                     }
-                }
                 let cnt = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                if cnt % 10_000 == 0 || cnt == total {
+                if cnt.is_multiple_of(10_000) || cnt == total {
                     let pct = (cnt as f64 / total as f64) * 100.0;
                     println!("[test] Progress: {:.1}% ({}/{})", pct, cnt, total);
                 }
@@ -217,14 +204,13 @@ fn correlate_dataset(
         AlgorithmChoice::OverlappingChunks => {
             let algo = OverlappingChunksAlgo::new(zones);
             for addr in addresses {
-                if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                    if dist <= cutoff {
+                if let Some((idx, dist)) = algo.correlate(addr, zones)
+                    && dist <= cutoff {
                         let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                         results.push((addr.adress.clone(), dist, info));
                     }
-                }
                 let cnt = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                if cnt % 10_000 == 0 || cnt == total {
+                if cnt.is_multiple_of(10_000) || cnt == total {
                     let pct = (cnt as f64 / total as f64) * 100.0;
                     println!("[test] Progress: {:.1}% ({}/{})", pct, cnt, total);
                 }
@@ -233,14 +219,13 @@ fn correlate_dataset(
         AlgorithmChoice::RTree => {
             let algo = RTreeSpatialAlgo::new(zones);
             for addr in addresses {
-                if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                    if dist <= cutoff {
+                if let Some((idx, dist)) = algo.correlate(addr, zones)
+                    && dist <= cutoff {
                         let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                         results.push((addr.adress.clone(), dist, info));
                     }
-                }
                 let cnt = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                if cnt % 10_000 == 0 || cnt == total {
+                if cnt.is_multiple_of(10_000) || cnt == total {
                     let pct = (cnt as f64 / total as f64) * 100.0;
                     println!("[test] Progress: {:.1}% ({}/{})", pct, cnt, total);
                 }
@@ -249,14 +234,13 @@ fn correlate_dataset(
         AlgorithmChoice::KDTree => {
             let algo = KDTreeSpatialAlgo::new(zones);
             for addr in addresses {
-                if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                    if dist <= cutoff {
+                if let Some((idx, dist)) = algo.correlate(addr, zones)
+                    && dist <= cutoff {
                         let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                         results.push((addr.adress.clone(), dist, info));
                     }
-                }
                 let cnt = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                if cnt % 10_000 == 0 || cnt == total {
+                if cnt.is_multiple_of(10_000) || cnt == total {
                     let pct = (cnt as f64 / total as f64) * 100.0;
                     println!("[test] Progress: {:.1}% ({}/{})", pct, cnt, total);
                 }
@@ -265,14 +249,13 @@ fn correlate_dataset(
         AlgorithmChoice::Grid => {
             let algo = GridNearestAlgo::new(zones);
             for addr in addresses {
-                if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                    if dist <= cutoff {
+                if let Some((idx, dist)) = algo.correlate(addr, zones)
+                    && dist <= cutoff {
                         let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                         results.push((addr.adress.clone(), dist, info));
                     }
-                }
                 let cnt = counter.fetch_add(1, Ordering::Relaxed) + 1;
-                if cnt % 10_000 == 0 || cnt == total {
+                if cnt.is_multiple_of(10_000) || cnt == total {
                     let pct = (cnt as f64 / total as f64) * 100.0;
                     println!("[test] Progress: {:.1}% ({}/{})", pct, cnt, total);
                 }
@@ -336,7 +319,14 @@ fn benchmark_selected_with_progress(
     let all_algos: Vec<(&str, BenchmarkAlgoFn)> = vec![
         ("Distance-Based", |bm, addrs, pb, matches| {
             let algo = DistanceBasedAlgo;
-            run_single_benchmark(&algo, addrs, &bm.parking_lines, pb, matches, "Distance-Based");
+            run_single_benchmark(
+                &algo,
+                addrs,
+                &bm.parking_lines,
+                pb,
+                matches,
+                "Distance-Based",
+            );
         }),
         ("Raycasting", |bm, addrs, pb, matches| {
             let algo = RaycastingAlgo;
@@ -344,7 +334,14 @@ fn benchmark_selected_with_progress(
         }),
         ("Overlapping Chunks", |bm, addrs, pb, matches| {
             let algo = OverlappingChunksAlgo::new(&bm.parking_lines);
-            run_single_benchmark(&algo, addrs, &bm.parking_lines, pb, matches, "Overlapping Chunks");
+            run_single_benchmark(
+                &algo,
+                addrs,
+                &bm.parking_lines,
+                pb,
+                matches,
+                "Overlapping Chunks",
+            );
         }),
         ("R-Tree", |bm, addrs, pb, matches| {
             let algo = RTreeSpatialAlgo::new(&bm.parking_lines);

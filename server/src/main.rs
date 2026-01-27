@@ -1,10 +1,10 @@
 //! AMP Server - Address-Parking Correlation TUI
 //! Ratatui-based interactive interface for correlation, testing, benchmarking and update checks.
 
+mod app;
 mod classification;
 mod tui;
 mod ui;
-mod app;
 
 use crate::app::App;
 

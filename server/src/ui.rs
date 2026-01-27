@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     prelude::*,
     text::{Line, Span},
     widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Row, Table, Tabs, Wrap},
@@ -470,11 +470,11 @@ impl App {
                     result.address.clone(),
                     format!(
                         "{:.1}m",
-                        result.miljo_match.map(|(d, _)| d).unwrap_or(999.0)
+                        result.miljo_match.as_ref().map(|(d, _)| d).copied().unwrap_or(999.0)
                     ),
                     format!(
                         "{:.1}m",
-                        result.parkering_match.map(|(d, _)| d).unwrap_or(999.0)
+                        result.parkering_match.as_ref().map(|(d, _)| d).copied().unwrap_or(999.0)
                     ),
                 ])
                 .style(Style::default().fg(Color::White))

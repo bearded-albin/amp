@@ -349,67 +349,78 @@ function loadMapWithAddress(address, x, y) {
         
         const stadsatlasConfig = ${JSON.stringify(stadsatlasConfig)};
         
-        // Initialize Origo with embedded config (no CORS issues!)
-        try {
+        // ✅ WAIT FOR ORIGO TO LOAD before initializing map
+        function initializeMap() {
+            if (typeof o === 'undefined') {
+                console.log('⏳ Waiting for Origo library to load...');
+                setTimeout(initializeMap, 100);  // Try again in 100ms
+                return;
+            }
+            
             console.log('📡 Using embedded StadsAtlas config (CORS bypass)');
             
-            // Create map
-            window.map = o.create({
-                target: 'map',
-                ...stadsatlasConfig,
-                center: [x, y],
-                zoom: zoom,
-                resolutions: stadsatlasConfig.resolutions
-            });
-            
-            // After a delay, enable layers using Origo's API
-            setTimeout(() => {
-                console.log('✏️ Setting up layers via Origo API...');
-                
-                // Method 1: Toggle layers by name using Origo's toggleLayer API
-                try {
-                    // Turn on Bakgrund layers
-                    window.map.toggleLayer('Bakgrundskarta_nedtonad_3008_text');
-                    console.log('✅ Toggled Bakgrundskarta_nedtonad_3008_text');
-                } catch (e) {
-                    console.log('🙈 Bakgrund toggle failed:', e.message);
-                }
-                
-                try {
-                    // Turn on miljöparkering layer
-                    window.map.toggleLayer('miljoparkeringl');
-                    console.log('✅ Toggled miljoparkeringl');
-                } catch (e) {
-                    console.log('🙈 Miljöparkering toggle failed:', e.message);
-                }
-                
-                // Method 2: Try to access layers array and enable by visibility
-                const layers = window.map.getLayers().getArray();
-                console.log(\`📊 Total layers: \${layers.length}\`);
-                
-                layers.forEach((layer, idx) => {
-                    const name = layer.get('name') || '';
-                    
-                    // Enable bakgrund
-                    if (name.toLowerCase().includes('bakgrund')) {
-                        layer.setVisible(true);
-                        console.log(\`✅ Enabled layer[\${idx}]: \${name}\`);
-                    }
-                    
-                    // Enable miljöparkering
-                    if (name === 'miljoparkeringl') {
-                        layer.setVisible(true);
-                        console.log(\`✅ Enabled layer[\${idx}]: \${name}\`);
-                    }
+            try {
+                // Create map
+                window.map = o.create({
+                    target: 'map',
+                    ...stadsatlasConfig,
+                    center: [x, y],
+                    zoom: zoom,
+                    resolutions: stadsatlasConfig.resolutions
                 });
                 
-                // Add pin to map
-                addPinMarker(x, y);
-                
-            }, 1000);  // Wait 1 second for map to fully initialize
-        } catch (error) {
-            console.error('❌ Failed to initialize map:', error);
+                // After a delay, enable layers using Origo's API
+                setTimeout(() => {
+                    console.log('📏 Setting up layers via Origo API...');
+                    
+                    // Method 1: Toggle layers by name using Origo's toggleLayer API
+                    try {
+                        // Turn on Bakgrund layers
+                        window.map.toggleLayer('Bakgrundskarta_nedtonad_3008_text');
+                        console.log('✅ Toggled Bakgrundskarta_nedtonad_3008_text');
+                    } catch (e) {
+                        console.log('🙈 Bakgrund toggle failed:', e.message);
+                    }
+                    
+                    try {
+                        // Turn on miljöparkering layer
+                        window.map.toggleLayer('miljoparkeringl');
+                        console.log('✅ Toggled miljoparkeringl');
+                    } catch (e) {
+                        console.log('🙈 Miljöparkering toggle failed:', e.message);
+                    }
+                    
+                    // Method 2: Try to access layers array and enable by visibility
+                    const layers = window.map.getLayers().getArray();
+                    console.log(\`📊 Total layers: \${layers.length}\`);
+                    
+                    layers.forEach((layer, idx) => {
+                        const name = layer.get('name') || '';
+                        
+                        // Enable bakgrund
+                        if (name.toLowerCase().includes('bakgrund')) {
+                            layer.setVisible(true);
+                            console.log(\`✅ Enabled layer[\${idx}]: \${name}\`);
+                        }
+                        
+                        // Enable miljöparkering
+                        if (name === 'miljoparkeringl') {
+                            layer.setVisible(true);
+                            console.log(\`✅ Enabled layer[\${idx}]: \${name}\`);
+                        }
+                    });
+                    
+                    // Add pin to map
+                    addPinMarker(x, y);
+                    
+                }, 1000);  // Wait 1 second for map to fully initialize
+            } catch (error) {
+                console.error('❌ Failed to initialize map:', error);
+            }
         }
+        
+        // Start initialization
+        initializeMap();
         
         // Function to add a pin marker
         function addPinMarker(x, y) {

@@ -7,239 +7,42 @@ use crate::ui::{
     paneler::{Active, Day, Month, NotValid, Six},
     topbar::TopBar,
 };
+use crate::static_data::StaticAddressEntry;
 
 use dioxus::prelude::*;
-use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 static CSS: Asset = asset!("/assets/style.css");
 
-static _ADDRESS_DATA: Asset = asset!("/assets/data/adress_info.parquet");
-
-#[derive(Clone, Debug, PartialEq)]
-struct Address {
-    street: String,
-    postal: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum ScheduleType {
-    Now,
-    SixHours,
-    TwentyFourHours,
-    Month,
-    None,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct Schedule {
-    kind: ScheduleType,
-    deadline: Option<SystemTime>,
-    active: bool,
-}
-
-fn schedule_key(addr: &Address) -> String {
-    format!("{}-{}", addr.street, addr.postal)
-}
-
-fn format_postal_code(postal: &str) -> String {
-    let digits: String = postal.chars().filter(|c| c.is_ascii_digit()).collect();
-    let mut padded = digits;
-    padded.push_str("00000");
-    let padded = &padded[..5];
-    format!("{} {}", &padded[0..3], &padded[3..5])
-}
-
-fn compute_deadline(kind: &ScheduleType) -> Option<SystemTime> {
-    let now = SystemTime::now();
-    match kind {
-        ScheduleType::None => None,
-        ScheduleType::Now => Some(now),
-        ScheduleType::SixHours => Some(now + Duration::from_secs(6 * 60 * 60)),
-        ScheduleType::TwentyFourHours => Some(now + Duration::from_secs(24 * 60 * 60)),
-        ScheduleType::Month => Some(now + Duration::from_secs(30 * 24 * 60 * 60)),
-    }
-}
-
-fn get_time_until(deadline: SystemTime) -> Option<Duration> {
-    deadline.duration_since(SystemTime::now()).ok()
-}
-
-fn format_time(ms: u128) -> String {
-    let total_seconds = (ms / 1000) as u64;
-    let days = total_seconds / 86_400;
-    let hours = (total_seconds % 86_400) / 3_600;
-    let minutes = (total_seconds % 3_600) / 60;
-    let seconds = total_seconds % 60;
-
-    format!("{:02}:{:02}:{:02}:{:02}", days, hours, minutes, seconds)
-}
-
 #[component]
 pub fn App() -> Element {
-    let mut addresses = use_signal::<Vec<Address>>(Vec::new);
-    let mut schedules = use_signal::<HashMap<String, Schedule>>(HashMap::new);
+    // Vector of validated addresses from static correlations
+    let mut addresses = use_signal::<Vec<StaticAddressEntry>>(Vec::new);
 
-    // initializeSampleData equivalent (runs once)
+    // Handle adding a valid address
+    let handle_add_address = move |entry: StaticAddressEntry| {
+        let mut addrs = addresses.write();
+        // Check if address already exists to avoid duplicates
+        if !addrs.iter().any(|a| a.adress == entry.adress) {
+            addrs.push(entry);
+        }
+    };
+
+    // Handle removing an address by its full address string
+    let handle_remove_address = move |adress: String| {
+        let mut addrs = addresses.write();
+        addrs.retain(|a| a.adress != adress);
+    };
+
+    // Initialize with sample data for testing
     use_effect(move || {
         if !addresses.read().is_empty() {
             return;
         }
-
-        let sample = vec![
-            Address {
-                street: "Storgatan 10".to_string(),
-                postal: "22100".to_string(),
-            },
-            Address {
-                street: "Kungsgatan 5".to_string(),
-                postal: "22200".to_string(),
-            },
-            Address {
-                street: "Järnvägsgatan 15".to_string(),
-                postal: "22300".to_string(),
-            },
-            Address {
-                street: "Södergatan 20".to_string(),
-                postal: "22400".to_string(),
-            },
-            Address {
-                street: "Västra vägen 8".to_string(),
-                postal: "22500".to_string(),
-            },
-        ];
-
-        let sched_types = vec![
-            ScheduleType::Now,
-            ScheduleType::SixHours,
-            ScheduleType::TwentyFourHours,
-            ScheduleType::Month,
-            ScheduleType::None,
-        ];
-
-        addresses.set(sample.clone());
-
-        let mut map = HashMap::new();
-        for (addr, kind) in sample.into_iter().zip(sched_types.into_iter()) {
-            let key = schedule_key(&addr);
-            let deadline = compute_deadline(&kind);
-            map.insert(
-                key,
-                Schedule {
-                    kind,
-                    deadline,
-                    active: true,
-                },
-            );
-        }
-
-        schedules.set(map);
+        // TODO: Initialize with sample data or from persistent storage
     });
 
-    // addAddressManual equivalent (without DOM, using callbacks)
-    let _add_address_manual = {
-        let mut addresses = addresses.to_owned();
-        let mut schedules = schedules.to_owned();
-        move |street: String, postal_input: String| {
-            if street.trim().is_empty() || postal_input.trim().is_empty() {
-                // in UI, show alert/toast instead
-                return;
-            }
-
-            let postal = format_postal_code(&postal_input);
-            let addr = Address {
-                street: street.trim().to_string(),
-                postal: postal.clone(),
-            };
-            let key = schedule_key(&addr);
-
-            if schedules.read().contains_key(&key) {
-                // address exists; show UI warning
-                return;
-            }
-
-            addresses.write().push(addr.clone());
-            schedules.write().insert(
-                key,
-                Schedule {
-                    kind: ScheduleType::None,
-                    deadline: None,
-                    active: true,
-                },
-            );
-        }
-    };
-
-    // removeAddress equivalent
-    let _remove_address = {
-        let mut addresses = addresses.to_owned();
-        let mut schedules = schedules.to_owned();
-        move |index: usize| {
-            let mut addrs = addresses.write();
-            if index >= addrs.len() {
-                return;
-            }
-            let addr = addrs.remove(index);
-            let key = schedule_key(&addr);
-            schedules.write().remove(&key);
-        }
-    };
-
-    // toggleAddress equivalent
-    let _toggle_address = {
-        let addresses = addresses.to_owned();
-        let mut schedules = schedules.to_owned();
-        move |index: usize| {
-            let addrs = addresses.read();
-            if index >= addrs.len() {
-                return;
-            }
-            let addr = &addrs[index];
-            let key = schedule_key(addr);
-            if let Some(s) = schedules.write().get_mut(&key) {
-                s.active = !s.active;
-            }
-        }
-    };
-
-    // updateSchedule equivalent
-    let _update_schedule = {
-        let addresses = addresses.to_owned();
-        let mut schedules = schedules.to_owned();
-        move |index: usize, new_kind: ScheduleType| {
-            let addrs = addresses.read();
-            if index >= addrs.len() {
-                return;
-            }
-            let addr = &addrs[index];
-            let key = schedule_key(addr);
-            if let Some(s) = schedules.write().get_mut(&key) {
-                s.kind = new_kind.clone();
-                s.deadline = compute_deadline(&new_kind);
-            }
-        }
-    };
-
-    // updateTimers equivalent: derive formatted time for each active scheduled address
-    let _timers: Vec<(Address, Option<String>)> = {
-        let addrs = addresses.read();
-        let scheds = schedules.read();
-        addrs
-            .iter()
-            .filter_map(|addr| {
-                let key = schedule_key(addr);
-                let schedule = scheds.get(&key)?;
-                if !schedule.active {
-                    return None;
-                }
-                let formatted = schedule
-                    .deadline
-                    .and_then(get_time_until)
-                    .map(|dur| format_time(dur.as_millis()));
-                Some((addr.clone(), formatted))
-            })
-            .collect()
-    };
+    let addrs = addresses.read().clone();
 
     rsx! {
         Stylesheet { href: CSS }
@@ -248,14 +51,31 @@ pub fn App() -> Element {
             TopBar {  },
             div {
                 class: "app-container",
-                Adresser {  }
+                Adresser {
+                    on_add_valid_address: handle_add_address,
+                }
                 div {
                     class: "categories-section",
-                    Active {  },
-                    Six {  },
-                    Day {  },
-                    Month {  },
-                    NotValid {  },
+                    Active {
+                        addresses: addrs.clone(),
+                        on_remove_address: handle_remove_address,
+                    }
+                    Six {
+                        addresses: addrs.clone(),
+                        on_remove_address: handle_remove_address,
+                    }
+                    Day {
+                        addresses: addrs.clone(),
+                        on_remove_address: handle_remove_address,
+                    }
+                    Month {
+                        addresses: addrs.clone(),
+                        on_remove_address: handle_remove_address,
+                    }
+                    NotValid {
+                        addresses: addrs.clone(),
+                        on_remove_address: handle_remove_address,
+                    }
                 }
             }
         }

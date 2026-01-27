@@ -181,7 +181,7 @@
         // Parse URL parameters
         const params = new URLSearchParams(window.location.hash.substring(1));
         const centerStr = params.get('center');
-        const zoom = parseInt(params.get('zoom')) || 11;
+        const zoom = parseInt(params.get('zoom')) || 10; // DEFAULT ZOOM IS NOW 10
         
         let mapCenterX = 119378;
         let mapCenterY = 6162294;

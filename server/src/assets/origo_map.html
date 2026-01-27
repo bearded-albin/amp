@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AMP Correlation Map - Direct Origo Embed</title>
+    <title>AMP Correlation Map - Origo Embed</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://stadsatlas.malmo.se/stadsatlas/css/style.css">
@@ -53,8 +53,8 @@
             .then(config => {
                 console.log('📡 Loaded StadsAtlas config');
                 
-                // Create map with modified config
-                const map = o.create({
+                // Create map
+                window.map = o.create({
                     target: 'map',
                     ...config,
                     center: [x, y],
@@ -62,64 +62,60 @@
                     resolutions: config.resolutions
                 });
                 
-                // After map initializes, set up layers and add pin
-                map.on('load', function() {
-                    console.log('✅ Map loaded - setting up layers');
+                // After a delay, enable layers using Origo's API
+                setTimeout(() => {
+                    console.log('✏️ Setting up layers via Origo API...');
                     
-                    // Get all layers
-                    const allLayers = map.getLayers().getArray();
-                    console.log(`📊 Total layers found: ${allLayers.length}`);
+                    // Method 1: Toggle layers by name using Origo's toggleLayer API
+                    try {
+                        // Turn on Bakgrund layers
+                        window.map.toggleLayer('Bakgrundskarta_nedtonad_3008_text');
+                        console.log('✅ Toggled Bakgrundskarta_nedtonad_3008_text');
+                    } catch (e) {
+                        console.log('🙈 Bakgrund toggle failed:', e.message);
+                    }
                     
-                    // Log all layer names for debugging
-                    allLayers.forEach((layer, idx) => {
-                        const layerName = layer.get('name') || '';
-                        const isVisible = layer.getVisible();
-                        console.log(`  [${idx}] ${layerName} (visible: ${isVisible})`);
-                    });
+                    try {
+                        // Turn on miljöparkering layer
+                        window.map.toggleLayer('miljoparkeringl');
+                        console.log('✅ Toggled miljoparkeringl');
+                    } catch (e) {
+                        console.log('🙈 Miljöparkering toggle failed:', e.message);
+                    }
                     
-                    // Enable background and miljöparkering layers
-                    let bgEnabled = false;
-                    let miljoEnabled = false;
+                    // Method 2: Try to access layers array and enable by visibility
+                    const layers = window.map.getLayers().getArray();
+                    console.log(`📊 Total layers: ${layers.length}`);
                     
-                    allLayers.forEach(layer => {
-                        const layerName = (layer.get('name') || '').toLowerCase();
+                    layers.forEach((layer, idx) => {
+                        const name = layer.get('name') || '';
                         
-                        // Show background layers
-                        if (layerName.includes('bakgrund') || 
-                            layerName.includes('background')) {
+                        // Enable bakgrund
+                        if (name.toLowerCase().includes('bakgrund')) {
                             layer.setVisible(true);
-                            bgEnabled = true;
-                            console.log('✅ Enabled background layer:', layer.get('name'));
+                            console.log(`✅ Enabled layer[${idx}]: ${name}`);
                         }
                         
-                        // Show miljöparkering layer (note: the actual name is 'miljoparkeringl')
-                        if (layerName.includes('miljoparkering')) {
+                        // Enable miljöparkering
+                        if (name === 'miljoparkeringl') {
                             layer.setVisible(true);
-                            miljoEnabled = true;
-                            console.log('✅ Enabled miljöparkering layer:', layer.get('name'));
+                            console.log(`✅ Enabled layer[${idx}]: ${name}`);
                         }
                     });
                     
-                    console.log('📋 Layer Status:', { bgEnabled, miljoEnabled });
+                    // Add pin to map
+                    addPinMarker(x, y);
                     
-                    // Add pin marker at center
-                    addPinMarker(map, x, y);
-                    
-                    console.log('📍 Pin marker added at:', [x, y]);
-                });
-                
-                // Error handling
-                map.on('error', function(error) {
-                    console.error('❌ Map error:', error);
-                });
+                }, 1000);  // Wait 1 second for map to fully initialize
             })
             .catch(error => {
                 console.error('❌ Failed to load StadsAtlas config:', error);
             });
         
-        // Function to add a pin marker using OpenLayers
-        function addPinMarker(map, x, y) {
-            // Create vector source for the marker
+        // Function to add a pin marker
+        function addPinMarker(x, y) {
+            console.log('📏 Adding pin at:', [x, y]);
+            
             const vectorSource = new ol.source.Vector({
                 features: [
                     new ol.Feature({
@@ -128,9 +124,9 @@
                 ]
             });
             
-            // Create vector layer with custom style
             const vectorLayer = new ol.layer.Vector({
                 source: vectorSource,
+                zIndex: 9999,  // Ensure it appears on top
                 style: new ol.style.Style({
                     image: new ol.style.Icon({
                         anchor: [0.5, 1],
@@ -139,16 +135,13 @@
                         scale: 1.2,
                         src: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="44" viewBox="0 0 32 44">
-                                <!-- Pin shadow -->
                                 <defs>
                                     <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
                                         <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
                                     </filter>
                                 </defs>
-                                <!-- Pin body -->
                                 <path d="M16 2 C9 2, 3 8, 3 16 C3 26, 16 44, 16 44 S29 26, 29 16 C29 8, 23 2, 16 2" 
                                       fill="#FF4444" stroke="white" stroke-width="2.5" filter="url(#shadow)"/>
-                                <!-- Pin center circle -->
                                 <circle cx="16" cy="15" r="6" fill="white" stroke="#FF4444" stroke-width="1.5"/>
                             </svg>
                         `)
@@ -156,8 +149,13 @@
                 })
             });
             
-            // Add layer to map (add it last so it appears on top)
-            map.addLayer(vectorLayer);
+            // Add to map
+            if (window.map) {
+                window.map.addLayer(vectorLayer);
+                console.log('✅ Pin added to map');
+            } else {
+                console.error('❌ Map object not available');
+            }
         }
     </script>
 </body>

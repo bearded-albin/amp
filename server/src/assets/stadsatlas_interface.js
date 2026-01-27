@@ -124,10 +124,10 @@ function loadMapWithAddress(address, x, y) {
     // Use the embedded data URI for origo_map.html
     const origoDataUri = '{ORIGO_DATA_URI}';
     
-    // Append coordinates to the data URI hash
-    iframe.src = `${origoDataUri}#center=${x},${y}&zoom=18`;
+    // Append coordinates and zoom level to the data URI hash
+    iframe.src = `${origoDataUri}#center=${x},${y}&zoom=10`;
     
-    logToConsole('MAP', '✓ iframe.src set to embedded data URI');
+    logToConsole('MAP', '✓ iframe.src set to embedded data URI with zoom=10');
     logToConsole('MAP', '');
     logToConsole('LAYERS', '✅ AUTOMATIC LAYER ACTIVATION:');
     logToConsole('LAYERS', 'The map should now:');
@@ -197,9 +197,9 @@ document.addEventListener('DOMContentLoaded', function() {
     logToConsole('INFO', '📍 How to use this interface:');
     logToConsole('INFO', '  1. Top: Map display (updated when you search)');
     logToConsole('INFO', '  2. Middle: Control panel with address search');
-    logToConsole('INFO', '  3. Bottom: Tabs for instructions, data, and debug info');
+    logToConsole('INFO', '  3. Bottom: Tabs for data and debug info');
     logToConsole('INFO', '');
-    logToConsole('INFO', '✨ NEW: Layers now enable automatically!');
+    logToConsole('INFO', '✨ Layers now enable automatically with zoom=10');
     logToConsole('INFO', '   (Background tiles + Miljöparkering + Red pin)');
     logToConsole('INFO', '');
     
@@ -240,11 +240,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Set Data tab as active by default
-    const dataTab = document.querySelector('[onclick*="switchTab(event, 2)"]');
+    const dataTab = document.querySelector('[onclick*="switchTab(event, 1)"]');
     if (dataTab) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-        const tabContent = document.getElementById('tab2');
+        const tabContent = document.getElementById('tab1');
         if (tabContent) tabContent.classList.add('active');
         if (dataTab) dataTab.classList.add('active');
     }

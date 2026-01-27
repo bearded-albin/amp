@@ -169,7 +169,7 @@
             <label for="miljoCheckbox">Miljöparkering</label>
         </div>
         <div class="layer-item">
-            <input type="checkbox" id="parkCheckbox">
+            <input type="checkbox" id="parkCheckbox" checked>
             <label for="parkCheckbox">Parkeringsavgifter</label>
         </div>
     </div>
@@ -193,7 +193,7 @@
         // Parse URL parameters
         const params = new URLSearchParams(window.location.hash.substring(1));
         const centerStr = params.get('center');
-        const zoom = parseInt(params.get('zoom')) || 18;
+        const zoom = parseInt(params.get('zoom')) || 11;
         
         let mapCenterX = 120844;
         let mapCenterY = 6161226;
@@ -281,7 +281,7 @@
                         'VERSION': '1.1.1'
                     }
                 }),
-                visible: false,
+                visible: true,
                 opacity: 0.75,
                 zIndex: 20
             });
@@ -351,7 +351,7 @@
             console.log('✅ Map created successfully');
             console.log('✅ Background layer added (ArcGIS REST export)');
             console.log('✅ Miljöparkering WMS layer added (visible by default)');
-            console.log('✅ Parkeringsavgifter WMS layer added (hidden by default)');
+            console.log('✅ Parkeringsavgifter WMS layer added (visible by default)');
             console.log('✅ Address pin added at [' + mapCenterX + ',' + mapCenterY + ']');
             
             // Layer toggle functionality

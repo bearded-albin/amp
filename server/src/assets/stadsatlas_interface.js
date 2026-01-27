@@ -4,7 +4,6 @@
 // ===================================================================
 
 const BASE_URL = 'https://geo.malmo.se/api/search';
-const ORIGO_MAP_URL = 'https://raw.githubusercontent.com/resonant-jovian/amp/feature/testing/server/src/assets/origo_map.html';
 let shouldAutoLoad = true; // Flag to auto-load on page load
 let hasAutoLoaded = false; // Track if auto-load has already happened
 
@@ -122,14 +121,159 @@ function loadMapWithAddress(address, x, y) {
     
     logToConsole('MAP', `✓ iframe element found`);
     
-    // Load our custom origo_map.html from GitHub with coordinates
-    // This file will handle layer activation automatically
-    const mapUrl = `${ORIGO_MAP_URL}#center=${x},${y}&zoom=18`;
+    // Create the Origo map HTML as a data URI
+    const origoMapHTML = `<!DOCTYPE html>
+<html>
+<head>
+    <title>AMP Correlation Map - Origo Embed</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://stadsatlas.malmo.se/stadsatlas/css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
     
-    logToConsole('MAP', `URL: ${mapUrl}`);
-    logToConsole('MAP', `Setting iframe src to custom Origo map from GitHub...`);
+    <script src="https://stadsatlas.malmo.se/stadsatlas/js/origo.js"><\/script>
+    <script src="https://cdn.jsdelivr.net/npm/ol@7.5.0/dist/ol.min.js"><\/script>
+    <script>
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.hash.substring(1));
+        const centerStr = urlParams.get('center');
+        const zoom = parseInt(urlParams.get('zoom')) || 18;
+        
+        let x = 120844;  // Default center
+        let y = 6161226;
+        
+        // Parse center coordinates
+        if (centerStr) {
+            const coords = centerStr.split(',');
+            if (coords.length === 2) {
+                x = parseFloat(coords[0]);
+                y = parseFloat(coords[1]);
+            }
+        }
+        
+        console.log('🗺️ Origo Map Init - Center:', [x, y], 'Zoom:', zoom);
+        
+        // Initialize Origo with StadsAtlas config
+        fetch('https://stadsatlas.malmo.se/stadsatlas/index.json')
+            .then(response => response.json())
+            .then(config => {
+                console.log('📡 Loaded StadsAtlas config');
+                
+                // Create map
+                window.map = o.create({
+                    target: 'map',
+                    ...config,
+                    center: [x, y],
+                    zoom: zoom,
+                    resolutions: config.resolutions
+                });
+                
+                // After a delay, enable layers using Origo's API
+                setTimeout(() => {
+                    console.log('📏 Setting up layers via Origo API...');
+                    
+                    const layers = window.map.getLayers().getArray();
+                    console.log(\`📊 Total layers: \${layers.length}\`);
+                    
+                    layers.forEach((layer, idx) => {
+                        const name = layer.get('name') || '';
+                        
+                        // Enable bakgrund
+                        if (name.toLowerCase().includes('bakgrund')) {
+                            layer.setVisible(true);
+                            console.log(\`✅ Enabled layer[\${idx}]: \${name}\`);
+                        }
+                        
+                        // Enable miljöparkering
+                        if (name === 'miljoparkeringl') {
+                            layer.setVisible(true);
+                            console.log(\`✅ Enabled layer[\${idx}]: \${name}\`);
+                        }
+                    });
+                    
+                    // Add pin to map
+                    addPinMarker(x, y);
+                    
+                }, 1000);  // Wait 1 second for map to fully initialize
+            })
+            .catch(error => {
+                console.error('❌ Failed to load StadsAtlas config:', error);
+            });
+        
+        // Function to add a pin marker
+        function addPinMarker(x, y) {
+            console.log('📏 Adding pin at:', [x, y]);
+            
+            const vectorSource = new ol.source.Vector({
+                features: [
+                    new ol.Feature({
+                        geometry: new ol.geom.Point([x, y])
+                    })
+                ]
+            });
+            
+            const vectorLayer = new ol.layer.Vector({
+                source: vectorSource,
+                zIndex: 9999,  // Ensure it appears on top
+                style: new ol.style.Style({
+                    image: new ol.style.Icon({
+                        anchor: [0.5, 1],
+                        anchorXUnits: 'fraction',
+                        anchorYUnits: 'fraction',
+                        scale: 1.2,
+                        src: 'data:image/svg+xml;utf8,' + encodeURIComponent(\`
+                            <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"44\" viewBox=\"0 0 32 44\">
+                                <defs>
+                                    <filter id=\"shadow\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">
+                                        <feDropShadow dx=\"0\" dy=\"2\" stdDeviation=\"2\" flood-opacity=\"0.3\"/>
+                                    </filter>
+                                </defs>
+                                <path d=\"M16 2 C9 2, 3 8, 3 16 C3 26, 16 44, 16 44 S29 26, 29 16 C29 8, 23 2, 16 2\" 
+                                      fill=\"#FF4444\" stroke=\"white\" stroke-width=\"2.5\" filter=\"url(#shadow)\"/>
+                                <circle cx=\"16\" cy=\"15\" r=\"6\" fill=\"white\" stroke=\"#FF4444\" stroke-width=\"1.5\"/>
+                            </svg>
+                        \`)
+                    })
+                })
+            });
+            
+            // Add to map
+            if (window.map) {
+                window.map.addLayer(vectorLayer);
+                console.log('✅ Pin added to map');
+            } else {
+                console.error('❌ Map object not available');
+            }
+        }
+    <\/script>
+</body>
+</html>`;
     
-    iframe.src = mapUrl;
+    // Encode as data URI
+    const dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(origoMapHTML);
+    
+    logToConsole('MAP', `Creating embedded map with data URI...`);
+    logToConsole('MAP', `Setting iframe src...`);
+    
+    iframe.src = dataUri + `#center=${x},${y}&zoom=18`;
     
     logToConsole('MAP', '✓ iframe.src set successfully');
     logToConsole('MAP', '');

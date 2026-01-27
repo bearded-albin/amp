@@ -4,7 +4,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout},
     prelude::*,
-    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Tabs, Wrap},
+    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Tabs},
 };
 
 use crate::classification;
@@ -166,10 +166,12 @@ impl App {
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
 
-            if crossterm::event::poll(timeout)? {
-                if let Event::Key(key) = crossterm::event::read()? {
+            if crossterm::event::poll(timeout)?
+                && let Event::Key(key) = crossterm::event::read()? {
                     // Always exit on Ctrl+C
-                    if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                    if key
+                        .modifiers
+                        .contains(crossterm::event::KeyModifiers::CONTROL)
                         && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
                     {
                         break;
@@ -179,7 +181,6 @@ impl App {
                         break;
                     }
                 }
-            }
 
             if last_tick.elapsed() >= tick_rate {
                 last_tick = Instant::now();
@@ -285,9 +286,9 @@ impl App {
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(1),  // tabs
-                Constraint::Min(5),     // content (flexible)
-                Constraint::Length(1),  // status
+                Constraint::Length(1), // tabs
+                Constraint::Min(5),    // content (flexible)
+                Constraint::Length(1), // status
             ])
             .split(size);
 
@@ -305,8 +306,8 @@ impl App {
     }
 
     fn draw_status(&self, frame: &mut Frame, area: Rect) {
-        let status = Paragraph::new(self.state.status_line.clone())
-            .style(Style::default().fg(Color::Cyan));
+        let status =
+            Paragraph::new(self.state.status_line.clone()).style(Style::default().fg(Color::Cyan));
         frame.render_widget(status, area);
     }
 
@@ -377,9 +378,12 @@ impl App {
         frame.render_widget(gauge, sections[1]);
 
         // Output - persists when switching tabs
-        let output_items: Vec<ListItem> = self.state.correlate_state.output_lines
+        let output_items: Vec<ListItem> = self
+            .state
+            .correlate_state
+            .output_lines
             .iter()
-            .take(100)  // limit to prevent performance issues
+            .take(100) // limit to prevent performance issues
             .map(|line| ListItem::new(line.as_str()))
             .collect();
 
@@ -389,8 +393,11 @@ impl App {
             format!("({} found)", self.state.correlate_state.results.len())
         };
 
-        let output_list = List::new(output_items)
-            .block(Block::default().borders(Borders::ALL).title(format!(" Results {} ", results_text)));
+        let output_list = List::new(output_items).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!(" Results {} ", results_text)),
+        );
         frame.render_widget(output_list, sections[2]);
     }
 
@@ -417,14 +424,17 @@ impl App {
         frame.render_widget(config, sections[0]);
 
         // Output (persists)
-        let output_items: Vec<ListItem> = self.state.test_state.output_lines
+        let output_items: Vec<ListItem> = self
+            .state
+            .test_state
+            .output_lines
             .iter()
             .take(100)
             .map(|line| ListItem::new(line.as_str()))
             .collect();
 
-        let output_list = List::new(output_items)
-            .block(Block::default().borders(Borders::ALL).title(" Output "));
+        let output_list =
+            List::new(output_items).block(Block::default().borders(Borders::ALL).title(" Output "));
         frame.render_widget(output_list, sections[1]);
     }
 
@@ -450,14 +460,17 @@ impl App {
         frame.render_widget(config, sections[0]);
 
         // Output (persists)
-        let output_items: Vec<ListItem> = self.state.benchmark_state.output_lines
+        let output_items: Vec<ListItem> = self
+            .state
+            .benchmark_state
+            .output_lines
             .iter()
             .take(100)
             .map(|line| ListItem::new(line.as_str()))
             .collect();
 
-        let output_list = List::new(output_items)
-            .block(Block::default().borders(Borders::ALL).title(" Output "));
+        let output_list =
+            List::new(output_items).block(Block::default().borders(Borders::ALL).title(" Output "));
         frame.render_widget(output_list, sections[1]);
     }
 
@@ -480,21 +493,27 @@ impl App {
         frame.render_widget(config, sections[0]);
 
         // Output (persists)
-        let output_items: Vec<ListItem> = self.state.updates_state.output_lines
+        let output_items: Vec<ListItem> = self
+            .state
+            .updates_state
+            .output_lines
             .iter()
             .take(100)
             .map(|line| ListItem::new(line.as_str()))
             .collect();
 
-        let output_list = List::new(output_items)
-            .block(Block::default().borders(Borders::ALL).title(" Output "));
+        let output_list =
+            List::new(output_items).block(Block::default().borders(Borders::ALL).title(" Output "));
         frame.render_widget(output_list, sections[1]);
     }
 
     fn run_correlation(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.state.correlate_state.progress = 0.0;
         self.state.correlate_state.output_lines.clear();
-        self.state.correlate_state.output_lines.push("Starting correlation...".to_string());
+        self.state
+            .correlate_state
+            .output_lines
+            .push("Starting correlation...".to_string());
         self.state.status_line = "Correlating...".to_string();
 
         let (addresses, miljodata, parkering): (
@@ -515,7 +534,10 @@ impl App {
             total,
         )?;
 
-        self.state.correlate_state.output_lines.push(format!("Miljodata: {}", miljo_results.len()));
+        self.state
+            .correlate_state
+            .output_lines
+            .push(format!("Miljodata: {}", miljo_results.len()));
 
         let parkering_results = self.correlate_dataset(
             self.state.selected_algorithm,
@@ -526,13 +548,20 @@ impl App {
             total,
         )?;
 
-        self.state.correlate_state.output_lines.push(format!("Parkering: {}", parkering_results.len()));
+        self.state
+            .correlate_state
+            .output_lines
+            .push(format!("Parkering: {}", parkering_results.len()));
 
         self.state.correlate_state.results =
             self.merge_results(&addresses, &miljo_results, &parkering_results);
         self.state.correlate_state.progress = 1.0;
-        self.state.correlate_state.output_lines.push(format!("Total: {}", self.state.correlate_state.results.len()));
-        self.state.status_line = format!("Done: {} results", self.state.correlate_state.results.len());
+        self.state.correlate_state.output_lines.push(format!(
+            "Total: {}",
+            self.state.correlate_state.results.len()
+        ));
+        self.state.status_line =
+            format!("Done: {} results", self.state.correlate_state.results.len());
 
         Ok(())
     }
@@ -552,12 +581,11 @@ impl App {
             AlgorithmChoice::DistanceBased => {
                 let algo = DistanceBasedAlgo;
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
@@ -565,12 +593,11 @@ impl App {
             AlgorithmChoice::Raycasting => {
                 let algo = RaycastingAlgo;
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
@@ -578,12 +605,11 @@ impl App {
             AlgorithmChoice::OverlappingChunks => {
                 let algo = OverlappingChunksAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
@@ -591,12 +617,11 @@ impl App {
             AlgorithmChoice::RTree => {
                 let algo = RTreeSpatialAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
@@ -604,12 +629,11 @@ impl App {
             AlgorithmChoice::KDTree => {
                 let algo = KDTreeSpatialAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
@@ -617,12 +641,11 @@ impl App {
             AlgorithmChoice::Grid => {
                 let algo = GridNearestAlgo::new(zones);
                 for addr in addresses {
-                    if let Some((idx, dist)) = algo.correlate(addr, zones) {
-                        if dist <= cutoff {
+                    if let Some((idx, dist)) = algo.correlate(addr, zones)
+                        && dist <= cutoff {
                             let info = zones.get(idx).map(|z| z.info.clone()).unwrap_or_default();
                             results.push((addr.adress.clone(), dist, info));
                         }
-                    }
                     *counter += 1;
                     self.state.correlate_state.progress = *counter as f64 / (total as f64 * 2.0);
                 }
@@ -670,37 +693,55 @@ impl App {
 
     fn run_test_mode(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.state.test_state.output_lines.clear();
-        self.state.test_state.output_lines.push("Launching browser...".to_string());
+        self.state
+            .test_state
+            .output_lines
+            .push("Launching browser...".to_string());
         self.state.status_line = "Opening browser...".to_string();
 
         classification::run_test_mode_legacy(self.state.selected_algorithm, self.state.cutoff)?;
 
-        self.state.test_state.output_lines.push("Complete".to_string());
-        self.state.status_line = "Test complete";
+        self.state
+            .test_state
+            .output_lines
+            .push("Complete".to_string());
+        self.state.status_line = "Test complete".to_string();
         Ok(())
     }
 
     fn run_benchmark(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.state.benchmark_state.output_lines.clear();
-        self.state.benchmark_state.output_lines.push("Starting benchmark...".to_string());
+        self.state
+            .benchmark_state
+            .output_lines
+            .push("Starting benchmark...".to_string());
         self.state.status_line = "Benchmarking...".to_string();
 
         classification::run_benchmark_legacy(self.state.cutoff)?;
 
-        self.state.benchmark_state.output_lines.push("Complete".to_string());
-        self.state.status_line = "Benchmark done";
+        self.state
+            .benchmark_state
+            .output_lines
+            .push("Complete".to_string());
+        self.state.status_line = "Benchmark done".to_string();
         Ok(())
     }
 
     fn run_update_check(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.state.updates_state.output_lines.clear();
-        self.state.updates_state.output_lines.push("Checking updates...".to_string());
+        self.state
+            .updates_state
+            .output_lines
+            .push("Checking updates...".to_string());
         self.state.status_line = "Checking updates...".to_string();
 
         classification::run_check_updates_legacy()?;
 
-        self.state.updates_state.output_lines.push("Complete".to_string());
-        self.state.status_line = "Check complete";
+        self.state
+            .updates_state
+            .output_lines
+            .push("Complete".to_string());
+        self.state.status_line = "Check complete".to_string();
         Ok(())
     }
 }

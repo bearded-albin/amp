@@ -109,7 +109,8 @@ function searchAddress() {
 }
 
 function loadMapWithAddress(address, x, y) {
-    logToConsole('MAP', 'Building StadsAtlas URL with miljöparkering layer...');
+    logToConsole('MAP', '=== STARTING MAP LOAD DEBUG ===');
+    logToConsole('MAP', `Input parameters: address="${address}", x=${x}, y=${y}`);
     
     const iframe = document.getElementById('stadsatlas-iframe');
     
@@ -118,25 +119,74 @@ function loadMapWithAddress(address, x, y) {
         return;
     }
     
+    logToConsole('MAP', `✓ iframe element found: ${iframe.id}`);
+    
     // Build URL with layer parameters
     const baseUrl = 'https://stadsatlas.malmo.se/stadsatlas/';
-    const mapUrl = `${baseUrl}#center=${x},${y}&zoom=18&pin=${x},${y}&layers=miljoparkering_l&layerIds=miljoparkering_l&visibleLayers=miljoparkering_l`;
     
-    logToConsole('MAP', `URL: ${mapUrl.substring(0, 100)}...`);
-    logToConsole('MAP', 'Setting iframe source to load StadsAtlas map...');
+    // Try multiple URL formats to test which one works
+    const urlFormat1 = `${baseUrl}#center=${x},${y}&zoom=18&pin=${x},${y}&layers=miljoparkering_l&layerIds=miljoparkering_l&visibleLayers=miljoparkering_l`;
+    const urlFormat2 = `${baseUrl}#center=${x},${y}&zoom=18&pin=${x},${y}&layers=miljoparkering_l,bakgrund_orto`;
+    const urlFormat3 = `${baseUrl}#center=${x},${y}&zoom=18`;
+    
+    logToConsole('MAP', '--- URL CANDIDATES ---');
+    logToConsole('MAP', `Format 1 (full params): ${urlFormat1.substring(0, 120)}...`);
+    logToConsole('MAP', `Format 2 (multiple layers): ${urlFormat2.substring(0, 120)}...`);
+    logToConsole('MAP', `Format 3 (minimal): ${urlFormat3.substring(0, 120)}...`);
+    
+    // Check iframe current state
+    logToConsole('MAP', '--- IFRAME STATE BEFORE ---');
+    logToConsole('MAP', `Current iframe.src: ${iframe.src || '(empty)'}`);
+    logToConsole('MAP', `iframe.id: ${iframe.id}`);
+    logToConsole('MAP', `iframe.name: ${iframe.name || '(empty)'}`);
+    logToConsole('MAP', `iframe.style.display: ${iframe.style.display || 'default'}`);
+    logToConsole('MAP', `iframe.style.visibility: ${iframe.style.visibility || 'default'}`);
+    logToConsole('MAP', `iframe.offsetHeight: ${iframe.offsetHeight}`);
+    logToConsole('MAP', `iframe.offsetWidth: ${iframe.offsetWidth}`);
+    
+    // Use Format 1 (full parameters)
+    const mapUrl = urlFormat1;
+    
+    logToConsole('MAP', `--- SETTING MAP URL ---`);
+    logToConsole('MAP', `Setting iframe.src to: ${mapUrl.substring(0, 120)}...`);
     
     // Set the iframe source to load the map
     iframe.src = mapUrl;
     
-    logToConsole('MAP', 'Map iframe source set');
+    logToConsole('MAP', '--- IFRAME STATE AFTER ---');
+    logToConsole('MAP', `iframe.src now: ${iframe.src.substring(0, 120)}...`);
+    
     logToConsole('LAYER', 'Attempted to activate miljöparkering layer via URL parameters');
-    logToConsole('LAYER', 'If layer not visible, manually activate it using the Layers panel in the map');
+    logToConsole('LAYER', '⚠️ Known issue: StadsAtlas may not load layers from URL parameters by default');
+    logToConsole('LAYER', '📌 Background (bakgrund) layer should always be visible');
+    logToConsole('LAYER', '📌 Miljödata layer may require manual activation in UI');
     
     // Wait for iframe to load
     iframe.onload = function() {
-        logToConsole('MAP', 'Iframe loaded successfully');
+        logToConsole('MAP', '✓ Iframe onload event fired');
         logToConsole('MAP', 'Map should now be visible with coordinates pinned');
+        logToConsole('MAP', '🔍 Check browser console in iframe for any errors');
+        
+        // Try to access iframe content (may be blocked by CORS)
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            if (iframeDoc) {
+                logToConsole('MAP', '✓ Can access iframe document (CORS check passed)');
+                logToConsole('MAP', `Iframe document title: ${iframeDoc.title}`);
+                logToConsole('MAP', `Iframe URL: ${iframeDoc.URL}`);
+            }
+        } catch (e) {
+            logToConsole('MAP', '⚠️ Cannot access iframe content (CORS blocked - this is normal for cross-origin iframe)');
+            logToConsole('MAP', `Error: ${e.message}`);
+        }
     };
+    
+    iframe.onerror = function() {
+        logToConsole('ERROR', '❌ Iframe failed to load');
+        logToConsole('ERROR', 'Check network tab in DevTools to see what happened');
+    };
+    
+    logToConsole('MAP', '=== MAP LOAD DEBUG COMPLETE ===');
 }
 
 function updateSearchStatus(address) {

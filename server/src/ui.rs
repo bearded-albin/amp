@@ -109,19 +109,23 @@ type CorrelationTuple = (String, f64, String);
 
 /// Per-view state
 pub struct DashboardState {
+    #[allow(dead_code)]
     scroll_offset: u16,
 }
 
 pub struct CorrelateState {
     running: bool,
     progress: f64,
+    #[allow(dead_code)]
     status_msg: String,
     details: Vec<String>,
 }
 
 pub struct ResultsState {
     results: Vec<CorrelationResult>,
+    #[allow(dead_code)]
     scroll_offset: usize,
+    #[allow(dead_code)]
     selected_idx: Option<usize>,
 }
 
@@ -144,6 +148,7 @@ pub struct AppState {
     pub should_quit: bool,
 
     // Per-view states
+    #[allow(dead_code)]
     dashboard: DashboardState,
     correlate: CorrelateState,
     results: ResultsState,

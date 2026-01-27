@@ -26,11 +26,11 @@ function handleApiError(error) {
     logToConsole('ERROR', `API Error: ${error}`);
     const statusEl = document.getElementById('search-status');
     if (statusEl) {
-        statusEl.textContent = `❌ Error: ${error}`;
+        statusEl.textContent = `✗ Error: ${error}`;
     }
     const statusIndicator = document.getElementById('status-indicator');
     if (statusIndicator) {
-        statusIndicator.textContent = `❌ Error: ${error}`;
+        statusIndicator.textContent = `✗ Error: ${error}`;
     }
 }
 
@@ -120,12 +120,14 @@ function loadMapWithAddress(address, x, y) {
     }
     
     logToConsole('MAP', `✓ iframe element found`);
-    logToConsole('MAP', `Loading map from: /assets/origo_map.html`);
     
-    // Load the local origo_map.html file with coordinates in hash
-    iframe.src = `/assets/origo_map.html#center=${x},${y}&zoom=18`;
+    // Use the embedded data URI for origo_map.html
+    const origoDataUri = '{ORIGO_DATA_URI}';
     
-    logToConsole('MAP', '✓ iframe.src set to local file');
+    // Append coordinates to the data URI hash
+    iframe.src = `${origoDataUri}#center=${x},${y}&zoom=18`;
+    
+    logToConsole('MAP', '✓ iframe.src set to embedded data URI');
     logToConsole('MAP', '');
     logToConsole('LAYERS', '✅ AUTOMATIC LAYER ACTIVATION:');
     logToConsole('LAYERS', 'The map should now:');

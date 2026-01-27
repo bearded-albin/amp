@@ -2,11 +2,12 @@
 //! Rebuilt with modern Ratatui patterns (v0.30) and professional architecture
 //! Inspired by: Slumber, Yozefu
 //! Pattern: Elm architecture with component-based design
+//! Features: Light/Dark mode, Vertical layout, Ctrl+C exit
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, ModifierKeyState};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     prelude::*,
@@ -30,6 +31,49 @@ const AMP_LOGO: &str = r#"
 | (_) || \ |_| /
  \___/  \___/
 "#;
+
+/// Color theme for light/dark modes
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColorTheme {
+    Light,
+    Dark,
+}
+
+impl ColorTheme {
+    /// Auto-detect theme based on terminal background
+    pub fn auto() -> Self {
+        // Default to dark for now, can be enhanced with terminal detection
+        ColorTheme::Dark
+    }
+
+    pub fn text_color(&self) -> Color {
+        match self {
+            ColorTheme::Light => Color::Black,
+            ColorTheme::Dark => Color::White,
+        }
+    }
+
+    pub fn bg_color(&self) -> Color {
+        match self {
+            ColorTheme::Light => Color::White,
+            ColorTheme::Dark => Color::Black,
+        }
+    }
+
+    pub fn alt_text_color(&self) -> Color {
+        match self {
+            ColorTheme::Light => Color::DarkGray,
+            ColorTheme::Dark => Color::Gray,
+        }
+    }
+
+    pub fn header_style(&self) -> Style {
+        match self {
+            ColorTheme::Light => Style::default().fg(Color::DarkCyan).add_modifier(Modifier::BOLD),
+            ColorTheme::Dark => Style::default().fg(Color::Cyan),
+        }
+    }
+}
 
 /// Algorithm enumeration
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -146,6 +190,7 @@ pub struct AppState {
     pub current_algorithm: Algorithm,
     pub cutoff_distance: f64,
     pub should_quit: bool,
+    pub theme: ColorTheme,
 
     // Per-view states
     #[allow(dead_code)]
@@ -163,6 +208,7 @@ impl Default for AppState {
             current_algorithm: Algorithm::KDTree,
             cutoff_distance: 20.0,
             should_quit: false,
+            theme: ColorTheme::auto(),
             dashboard: DashboardState { scroll_offset: 0 },
             correlate: CorrelateState {
                 running: false,
@@ -239,13 +285,18 @@ impl App {
     fn render(&self, f: &mut Frame) {
         let area = f.area();
 
+        // Optimize for small/vertical screens: reduce header to 1 line if needed
+        let header_height = if area.height < 20 { 1 } else { 2 };
+        let footer_height = 1;
+        let content_height = area.height.saturating_sub(header_height + footer_height);
+
         // Main layout: header | content | footer
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(2),  // header with tabs
-                Constraint::Min(10),    // main content
-                Constraint::Length(1),  // footer
+                Constraint::Length(header_height),
+                Constraint::Min(content_height as usize),
+                Constraint::Length(footer_height),
             ])
             .split(area);
 
@@ -264,7 +315,7 @@ impl App {
 
         let tabs = Tabs::new(titles)
             .select(current_idx)
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(self.state.theme.alt_text_color()))
             .highlight_style(
                 Style::default()
                     .fg(Color::Cyan)
@@ -286,54 +337,84 @@ impl App {
     }
 
     fn render_dashboard(&self, f: &mut Frame, area: Rect) {
+        let theme = self.state.theme;
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
             .title(" 📊 AMP Dashboard ")
             .title_alignment(Alignment::Center)
-            .style(Style::default().fg(Color::Cyan));
+            .style(theme.header_style());
 
         let inner = block.inner(area);
         f.render_widget(block, area);
 
-        // Create content lines
-        let lines = vec![
+        // Create content lines - using proper spacing instead of offsets
+        let mut lines = vec![
             Line::from(AMP_LOGO),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("Address Parking Mapper", Style::default().add_modifier(Modifier::BOLD)),
-            ]),
-            Line::from(vec![
-                Span::raw("Correlate addresses with parking zones using "),
-                Span::styled("spatial algorithms", Style::default().fg(Color::Yellow)),
-            ]),
-            Line::from(""),
-            Line::from("📋 Quick Stats:"),
-            Line::from(format!("  • Current Algorithm: {}", self.state.current_algorithm.name())),
-            Line::from(format!("  • Distance Cutoff: {:.1}m", self.state.cutoff_distance)),
-            Line::from(""),
-            Line::from("⌨️  Navigation:"),
-            Line::from("  [1-5] Jump to tab  |  [←→] Navigate  |  [q] Quit"),
-            Line::from(""),
-            Line::from("🎛️  Controls:"),
-            Line::from("  [a] Algorithm  |  [+/-] Distance  |  [Enter] Run"),
         ];
 
+        // Add spacing
+        lines.push(Line::from(""));
+
+        // Title
+        lines.push(Line::from(vec![
+            Span::styled("Address Parking Mapper", Style::default().fg(theme.text_color()).add_modifier(Modifier::BOLD)),
+        ]));
+
+        // Description
+        lines.push(Line::from(vec![
+            Span::raw("Correlate addresses with parking zones using "),
+            Span::styled("spatial algorithms", Style::default().fg(Color::Yellow)),
+        ]));
+
+        // Spacing
+        lines.push(Line::from(""));
+
+        // Stats section
+        lines.push(Line::from(vec![
+            Span::styled("📋 Quick Stats:", Style::default().fg(theme.text_color()).add_modifier(Modifier::BOLD)),
+        ]));
+        lines.push(Line::from(format!("  • Algorithm: {}", self.state.current_algorithm.name()).style(theme.text_color())));
+        lines.push(Line::from(format!("  • Cutoff: {:.1}m", self.state.cutoff_distance).style(theme.text_color())));
+
+        // Spacing
+        lines.push(Line::from(""));
+
+        // Navigation section
+        lines.push(Line::from(vec![
+            Span::styled("⌨️ Navigation:", Style::default().fg(theme.text_color()).add_modifier(Modifier::BOLD)),
+        ]));
+        lines.push(Line::from("  [1-5] Jump | [←→] Tab | [a] Algorithm | [+/-] Distance".style(theme.text_color())));
+
+        // Spacing
+        lines.push(Line::from(""));
+
+        // Exit section
+        lines.push(Line::from(vec![
+            Span::styled("[Enter]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Run | "),
+            Span::styled("[Ctrl+C]", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::raw(" Exit"),
+        ]));
+
         let paragraph = Paragraph::new(lines)
-            .alignment(Alignment::Center)
+            .alignment(Alignment::Left)
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(Color::White));
+            .style(Style::default().fg(theme.text_color()));
 
         f.render_widget(paragraph, inner);
     }
 
     fn render_correlate(&self, f: &mut Frame, area: Rect) {
+        let theme = self.state.theme;
+
+        // Layout: config | progress | details
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(8), // config section
-                Constraint::Length(3), // progress
-                Constraint::Min(5),    // details
+                Constraint::Percentage(40),  // config section
+                Constraint::Percentage(20),  // progress
+                Constraint::Percentage(40),  // details
             ])
             .split(area);
 
@@ -354,31 +435,33 @@ impl App {
 
         f.render_widget(gauge, chunks[1]);
 
-        // Details
+        // Details list
         let items: Vec<ListItem> = self
             .state
             .correlate
             .details
             .iter()
-            .map(|line| ListItem::new(line.as_str()))
+            .map(|line| ListItem::new(line.as_str()).style(Style::default().fg(theme.text_color())))
             .collect();
 
         let list = List::new(items).block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(ratatui::widgets::BorderType::Rounded)
-                .title(" Details "),
+                .title(" Details ")
+                .title_alignment(Alignment::Left),
         );
 
         f.render_widget(list, chunks[2]);
     }
 
     fn render_algorithm_selector(&self, f: &mut Frame, area: Rect) {
+        let theme = self.state.theme;
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
             .title(" ⚙️  Configuration ")
-            .style(Style::default().fg(Color::Green));
+            .style(theme.header_style());
 
         let inner = block.inner(area);
         f.render_widget(block, area);
@@ -390,11 +473,11 @@ impl App {
                 let is_selected = *algo == self.state.current_algorithm;
                 let style = if is_selected {
                     Style::default()
-                        .fg(Color::Black)
+                        .fg(theme.bg_color())
                         .bg(Color::Cyan)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(Color::White)
+                    Style::default().fg(theme.text_color())
                 };
 
                 let check = if is_selected { "✓" } else { " " };
@@ -409,43 +492,17 @@ impl App {
         let table = Table::new(
             rows,
             [
-                Constraint::Length(25),
-                Constraint::Min(30),
+                Constraint::Percentage(35),
+                Constraint::Percentage(65),
             ],
         )
-        .style(Style::default().fg(Color::White));
+        .style(Style::default().fg(theme.text_color()));
 
-        let hints = vec![
-            Line::from(vec![
-                Span::raw("Cutoff: "),
-                Span::styled(
-                    format!("{:.1}m", self.state.cutoff_distance),
-                    Style::default().fg(Color::Yellow),
-                ),
-                Span::raw("  | Press [a] to cycle algorithms | [+/-] to adjust distance"),
-            ]),
-            Line::from("Press [Enter] to start correlation →"),
-        ];
-
-        let hints_widget = Paragraph::new(hints)
-            .wrap(Wrap { trim: true })
-            .style(Style::default().fg(Color::DarkGray));
-
-        let table_area = Rect {
-            height: inner.height.saturating_sub(3),
-            ..inner
-        };
-        let hints_area = Rect {
-            y: table_area.y + table_area.height,
-            height: 3,
-            ..inner
-        };
-
-        f.render_widget(table, table_area);
-        f.render_widget(hints_widget, hints_area);
+        f.render_widget(table, inner);
     }
 
     fn render_results(&self, f: &mut Frame, area: Rect) {
+        let theme = self.state.theme;
         let result_count = self.state.results.results.len();
 
         if result_count == 0 {
@@ -453,10 +510,11 @@ impl App {
                 .borders(Borders::ALL)
                 .border_type(ratatui::widgets::BorderType::Rounded)
                 .title(" 📊 Results (0 found) ")
-                .style(Style::default().fg(Color::Gray));
+                .style(Style::default().fg(theme.alt_text_color()));
 
             let para = Paragraph::new("No results. Run correlation first (Tab 2)")
                 .alignment(Alignment::Center)
+                .style(Style::default().fg(theme.text_color()))
                 .block(block);
 
             f.render_widget(para, area);
@@ -469,7 +527,7 @@ impl App {
             .results
             .results
             .iter()
-            .take(20) // Limit display
+            .take(100) // Allow more rows on vertical screens
             .map(|result| {
                 Row::new(vec![
                     result.address.clone(),
@@ -482,7 +540,7 @@ impl App {
                         result.parkering_match.as_ref().map(|(d, _)| d).copied().unwrap_or(999.0)
                     ),
                 ])
-                .style(Style::default().fg(Color::White))
+                .style(Style::default().fg(theme.text_color()))
             })
             .collect();
 
@@ -496,7 +554,7 @@ impl App {
         )
         .header(
             Row::new(vec!["Address", "Miljö (m)", "Parkering (m)"])
-                .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                .style(theme.header_style())
                 .bottom_margin(1),
         )
         .block(
@@ -510,11 +568,12 @@ impl App {
     }
 
     fn render_benchmark(&self, f: &mut Frame, area: Rect) {
+        let theme = self.state.theme;
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // Controls
-                Constraint::Min(8),    // Results table
+                Constraint::Percentage(20), // Controls
+                Constraint::Percentage(80), // Results table
             ])
             .split(area);
 
@@ -526,7 +585,7 @@ impl App {
                     .border_type(ratatui::widgets::BorderType::Rounded)
                     .title(" 🎯 Controls "),
             )
-            .style(Style::default().fg(Color::Yellow))
+            .style(Style::default().fg(theme.text_color()))
             .alignment(Alignment::Center);
 
         f.render_widget(controls, chunks[0]);
@@ -541,7 +600,7 @@ impl App {
                         .title(" ⚡ Performance "),
                 )
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::DarkGray));
+                .style(Style::default().fg(theme.alt_text_color()));
 
             f.render_widget(msg, chunks[1]);
         } else {
@@ -556,7 +615,7 @@ impl App {
                         format!("{}ms", total.as_millis()),
                         format!("{}μs", avg.as_micros()),
                     ])
-                    .style(Style::default().fg(Color::White))
+                    .style(Style::default().fg(theme.text_color()))
                 })
                 .collect();
 
@@ -570,7 +629,7 @@ impl App {
             )
             .header(
                 Row::new(vec!["Algorithm", "Total Time", "Per Address"])
-                    .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                    .style(theme.header_style())
                     .bottom_margin(1),
             )
             .block(
@@ -585,11 +644,12 @@ impl App {
     }
 
     fn render_updates(&self, f: &mut Frame, area: Rect) {
+        let theme = self.state.theme;
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // Controls
-                Constraint::Min(8),    // Status
+                Constraint::Percentage(20), // Controls
+                Constraint::Percentage(80), // Status
             ])
             .split(area);
 
@@ -601,23 +661,25 @@ impl App {
                     .border_type(ratatui::widgets::BorderType::Rounded)
                     .title(" 🔍 Data Portal "),
             )
-            .style(Style::default().fg(Color::Magenta))
+            .style(Style::default().fg(theme.text_color()))
             .alignment(Alignment::Center);
 
         f.render_widget(controls, chunks[0]);
 
         // Status
-        let status_text = if let Some(last) = self.state.updates.last_check {
-            format!(
-                "Last check: {:.1}s ago\n\n{}",
-                last.elapsed().as_secs_f64(),
-                self.state.updates.status
-            )
-        } else {
-            self.state.updates.status.clone()
-        };
+        let mut status_lines = Vec::new();
 
-        let status = Paragraph::new(status_text)
+        if let Some(last) = self.state.updates.last_check {
+            status_lines.push(Line::from(format!(
+                "Last check: {:.1}s ago",
+                last.elapsed().as_secs_f64()
+            )));
+            status_lines.push(Line::from(""));
+        }
+
+        status_lines.push(Line::from(&self.state.updates.status));
+
+        let status = Paragraph::new(status_lines)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
@@ -625,20 +687,26 @@ impl App {
                     .title(" ✓ Status "),
             )
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(Color::White));
+            .style(Style::default().fg(theme.text_color()));
 
         f.render_widget(status, chunks[1]);
     }
 
     fn render_footer(&self, f: &mut Frame, area: Rect) {
+        let theme = self.state.theme;
         let status_text = format!(
-            " {} | Cutoff: {:.1}m | [q] Quit | Ctrl+C Exit ",
+            " {} | Cutoff: {:.1}m | Ctrl+C to Exit ",
             self.state.current_algorithm.name(),
             self.state.cutoff_distance
         );
 
         let footer = Paragraph::new(status_text)
-            .style(Style::default().fg(Color::White).bg(Color::DarkGray))
+            .style(Style::default()
+                .fg(match theme {
+                    ColorTheme::Light => Color::White,
+                    ColorTheme::Dark => Color::White,
+                })
+                .bg(Color::DarkGray))
             .alignment(Alignment::Left);
 
         f.render_widget(footer, area);
@@ -650,6 +718,10 @@ impl App {
         }
 
         match key.code {
+            // Ctrl+C always exits
+            KeyCode::Char('c') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                self.state.should_quit = true;
+            }
             KeyCode::Char('q') | KeyCode::Char('Q') => self.state.should_quit = true,
             KeyCode::Char('1') => self.state.current_view = View::Dashboard,
             KeyCode::Char('2') => self.state.current_view = View::Correlate,

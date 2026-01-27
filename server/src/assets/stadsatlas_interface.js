@@ -109,8 +109,8 @@ function searchAddress() {
 }
 
 function loadMapWithAddress(address, x, y) {
-    logToConsole('MAP', '=== STARTING MAP LOAD DEBUG ===');
-    logToConsole('MAP', `Input parameters: address="${address}", x=${x}, y=${y}`);
+    logToConsole('MAP', '=== STARTING MAP LOAD ===');
+    logToConsole('MAP', `Loading map for: "${address}" at (${x}, ${y})`);
     
     const iframe = document.getElementById('stadsatlas-iframe');
     
@@ -119,85 +119,62 @@ function loadMapWithAddress(address, x, y) {
         return;
     }
     
-    logToConsole('MAP', `✓ iframe element found: ${iframe.id}`);
+    logToConsole('MAP', `✓ iframe element found`);
     
-    // Build URL with layer parameters
+    // IMPORTANT: Use SIMPLE URL without layer parameters
+    // StadsAtlas does NOT support layer activation via URL hash parameters
+    // Layer toggling requires JavaScript access (blocked by CORS)
+    // Solution: Show map centered on address, user manually enables layers
     const baseUrl = 'https://stadsatlas.malmo.se/stadsatlas/';
+    const mapUrl = `${baseUrl}#center=${x},${y}&zoom=18`;
     
-    // Try multiple URL formats to test which one works
-    const urlFormat1 = `${baseUrl}#center=${x},${y}&zoom=18&pin=${x},${y}&layers=miljoparkering_l&layerIds=miljoparkering_l&visibleLayers=miljoparkering_l`;
-    const urlFormat2 = `${baseUrl}#center=${x},${y}&zoom=18&pin=${x},${y}&layers=miljoparkering_l,bakgrund_orto`;
-    const urlFormat3 = `${baseUrl}#center=${x},${y}&zoom=18`;
+    logToConsole('MAP', `URL: ${mapUrl}`);
+    logToConsole('MAP', `Setting iframe src...`);
     
-    logToConsole('MAP', '--- URL CANDIDATES ---');
-    logToConsole('MAP', `Format 1 (full params): ${urlFormat1.substring(0, 120)}...`);
-    logToConsole('MAP', `Format 2 (multiple layers): ${urlFormat2.substring(0, 120)}...`);
-    logToConsole('MAP', `Format 3 (minimal): ${urlFormat3.substring(0, 120)}...`);
-    
-    // Check iframe current state
-    logToConsole('MAP', '--- IFRAME STATE BEFORE ---');
-    logToConsole('MAP', `Current iframe.src: ${iframe.src || '(empty)'}`);
-    logToConsole('MAP', `iframe.id: ${iframe.id}`);
-    logToConsole('MAP', `iframe.name: ${iframe.name || '(empty)'}`);
-    logToConsole('MAP', `iframe.style.display: ${iframe.style.display || 'default'}`);
-    logToConsole('MAP', `iframe.style.visibility: ${iframe.style.visibility || 'default'}`);
-    logToConsole('MAP', `iframe.offsetHeight: ${iframe.offsetHeight}`);
-    logToConsole('MAP', `iframe.offsetWidth: ${iframe.offsetWidth}`);
-    
-    // Use Format 1 (full parameters)
-    const mapUrl = urlFormat1;
-    
-    logToConsole('MAP', `--- SETTING MAP URL ---`);
-    logToConsole('MAP', `Setting iframe.src to: ${mapUrl.substring(0, 120)}...`);
-    
-    // Set the iframe source to load the map
     iframe.src = mapUrl;
     
-    logToConsole('MAP', '--- IFRAME STATE AFTER ---');
-    logToConsole('MAP', `iframe.src now: ${iframe.src.substring(0, 120)}...`);
+    logToConsole('MAP', '✓ iframe.src set successfully');
+    logToConsole('MAP', '');
+    logToConsole('LAYERS', '⚠️  IMPORTANT: StadsAtlas does not support automatic layer activation via URL');
+    logToConsole('LAYERS', '🎯 Next: You must MANUALLY enable layers in the map:');
+    logToConsole('LAYERS', '');
+    logToConsole('LAYERS', 'Steps to enable BAKGRUND (background/tiled layer):');
+    logToConsole('LAYERS', '  1. Look for the LAYERS icon (top-right of map, looks like stacked cards)');
+    logToConsole('LAYERS', '  2. Click it to open the layers panel');
+    logToConsole('LAYERS', '  3. Find and check the BAKGRUND layer');
+    logToConsole('LAYERS', '');
+    logToConsole('LAYERS', 'Steps to enable MILJÖPARKERING (environment parking):');
+    logToConsole('LAYERS', '  1. In the same layers panel, click arrows to expand sections');
+    logToConsole('LAYERS', '  2. Look for MILJÖPARKERING, MILJÖDATA, or similar');
+    logToConsole('LAYERS', '  3. Check the checkbox to enable it');
+    logToConsole('LAYERS', '');
+    logToConsole('MAP', '💡 Troubleshooting:');
+    logToConsole('MAP', '  - If layers still don\'t appear, check browser console (F12) for errors');
+    logToConsole('MAP', '  - Close and reopen the layers panel');
+    logToConsole('MAP', '  - Zoom in/out to force layer re-render');
+    logToConsole('MAP', '  - Try refreshing the page');
+    logToConsole('MAP', '');
+    logToConsole('MAP', '=== MAP LOAD COMPLETE ===');
     
-    logToConsole('LAYER', 'Attempted to activate miljöparkering layer via URL parameters');
-    logToConsole('LAYER', '⚠️ Known issue: StadsAtlas may not load layers from URL parameters by default');
-    logToConsole('LAYER', '📌 Background (bakgrund) layer should always be visible');
-    logToConsole('LAYER', '📌 Miljödata layer may require manual activation in UI');
-    
-    // Wait for iframe to load
+    // Setup iframe load/error handlers
     iframe.onload = function() {
-        logToConsole('MAP', '✓ Iframe onload event fired');
-        logToConsole('MAP', 'Map should now be visible with coordinates pinned');
-        logToConsole('MAP', '🔍 Check browser console in iframe for any errors');
-        
-        // Try to access iframe content (may be blocked by CORS)
-        try {
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-            if (iframeDoc) {
-                logToConsole('MAP', '✓ Can access iframe document (CORS check passed)');
-                logToConsole('MAP', `Iframe document title: ${iframeDoc.title}`);
-                logToConsole('MAP', `Iframe URL: ${iframeDoc.URL}`);
-            }
-        } catch (e) {
-            logToConsole('MAP', '⚠️ Cannot access iframe content (CORS blocked - this is normal for cross-origin iframe)');
-            logToConsole('MAP', `Error: ${e.message}`);
-        }
+        logToConsole('MAP', '✓ Iframe loaded successfully');
     };
     
     iframe.onerror = function() {
-        logToConsole('ERROR', '❌ Iframe failed to load');
-        logToConsole('ERROR', 'Check network tab in DevTools to see what happened');
+        logToConsole('ERROR', '✗ Iframe failed to load - check network connection');
     };
-    
-    logToConsole('MAP', '=== MAP LOAD DEBUG COMPLETE ===');
 }
 
 function updateSearchStatus(address) {
     const statusEl = document.getElementById('search-status');
     if (statusEl) {
-        statusEl.textContent = `✓ Found: ${address}`;
+        statusEl.textContent = `✓ Found: ${address} - Map loaded (enable layers manually)`;
     }
     
     const statusIndicator = document.getElementById('status-indicator');
     if (statusIndicator) {
-        statusIndicator.textContent = `✓ Map loaded: ${address}`;
+        statusIndicator.textContent = `✓ Map loaded for: ${address}`;
     }
 }
 
@@ -228,7 +205,16 @@ function switchTab(event, tabNum) {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    logToConsole('READY', 'AMP Testing Interface loaded. Map section is persistent at top, tabs cycle below.');
+    logToConsole('READY', 'AMP Testing Interface initialized');
+    logToConsole('READY', '');
+    logToConsole('INFO', '📍 How to use this interface:');
+    logToConsole('INFO', '  1. Top: Map display (updated when you search)');
+    logToConsole('INFO', '  2. Middle: Control panel with address search');
+    logToConsole('INFO', '  3. Bottom: Tabs for instructions, data, and debug info');
+    logToConsole('INFO', '');
+    logToConsole('INFO', '⚠️  NOTE: Layers must be enabled manually in the map');
+    logToConsole('INFO', '   (StadsAtlas doesn\'t support URL-based layer control)');
+    logToConsole('INFO', '');
     
     // Set up search button
     const searchBtn = document.querySelector('.control-button');
@@ -252,39 +238,34 @@ document.addEventListener('DOMContentLoaded', function() {
         const computedStyle = window.getComputedStyle(mapContainer);
         const width = computedStyle.width;
         const height = computedStyle.height;
-        logToConsole('DEBUG', `Map container computed dimensions: ${width} x ${height}`);
+        logToConsole('DEBUG', `Map container dimensions: ${width} x ${height}`);
         
-        // Ensure minimum height is met
+        // Emergency fixes if dimensions are zero
         if (mapContainer.offsetHeight === 0) {
-            logToConsole('DEBUG', 'WARNING: Map container height is 0! Applying emergency fix.');
+            logToConsole('DEBUG', '⚠️  Map container height is 0 - applying emergency fix');
             mapContainer.style.height = '500px';
         }
         
-        // Ensure minimum width is met
         if (mapContainer.offsetWidth === 0) {
-            logToConsole('DEBUG', 'WARNING: Map container width is 0! Applying emergency fix.');
+            logToConsole('DEBUG', '⚠️  Map container width is 0 - applying emergency fix');
             mapContainer.style.width = '100%';
         }
     }
     
-    // Set Data tab as active by default (but DON'T trigger searches yet)
+    // Set Data tab as active by default
     const dataTab = document.querySelector('[onclick*="switchTab(event, 2)"]');
     if (dataTab) {
-        // Manually set active state without triggering click
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
         const tabContent = document.getElementById('tab2');
         if (tabContent) tabContent.classList.add('active');
         if (dataTab) dataTab.classList.add('active');
-        logToConsole('TAB', 'Data tab activated on page load');
     }
     
     // Auto-load map with correlation address on page load (ONLY ONCE)
-    logToConsole('INIT', 'Checking for auto-load on page load...');
     if (shouldAutoLoad && !hasAutoLoaded && searchInput && searchInput.value && searchInput.value.trim() !== '' && searchInput.value !== '{ADDRESS}') {
-        hasAutoLoaded = true; // Prevent double auto-load
+        hasAutoLoaded = true;
         logToConsole('INIT', `Auto-loading map for: ${searchInput.value}`);
-        // Small delay to ensure everything is initialized
         setTimeout(searchAddress, 300);
     }
 });

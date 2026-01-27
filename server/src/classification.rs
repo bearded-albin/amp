@@ -7,7 +7,7 @@ use amp_core::correlation_algorithms::{
     RTreeSpatialAlgo, RaycastingAlgo,
 };
 use amp_core::structs::{AdressClean, CorrelationResult, MiljoeDataClean};
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -21,7 +21,7 @@ pub const _STANDARD_CUTOFF_METERS: f64 = 20.0;
 type CorrelationTuple = (String, f64, String);
 
 /// Type alias for benchmark algorithm function
-type BenchmarkAlgoFn = fn(&Benchmarker, &[AdressClean], &ProgressBar, &AtomicUsize) -> ();
+type _BenchmarkAlgoFn = fn(&Benchmarker, &[AdressClean], &ProgressBar, &AtomicUsize) -> ();
 
 #[allow(dead_code)]
 pub fn run_test_mode_legacy(
@@ -41,7 +41,7 @@ pub fn run_test_mode_legacy(
 }
 
 pub fn run_benchmark_legacy(_cutoff: f64) -> Result<(), Box<dyn std::error::Error>> {
-    let sample_size = 500_usize;
+    let _sample_size = 500_usize;
 
     // All benchmark output goes through TUI logging, not println!
     let (_addresses, _zones) = amp_core::api::api_miljo_only()?;
@@ -225,7 +225,7 @@ fn merge_results(
         .collect()
 }
 
-fn benchmark_selected_with_progress(
+fn _benchmark_selected_with_progress(
     benchmarker: &Benchmarker,
     sample_size: usize,
     selected_algos: &[&str],
@@ -239,10 +239,10 @@ fn benchmark_selected_with_progress(
     let mut results = Vec::new();
     let mut pb_idx = 0;
 
-    let all_algos: Vec<(&str, BenchmarkAlgoFn)> = vec![
+    let all_algos: Vec<(&str, _BenchmarkAlgoFn)> = vec![
         ("Distance-Based", |bm, addrs, pb, matches| {
             let algo = DistanceBasedAlgo;
-            run_single_benchmark(
+            _run_single_benchmark(
                 &algo,
                 addrs,
                 &bm.parking_lines,
@@ -253,11 +253,11 @@ fn benchmark_selected_with_progress(
         }),
         ("Raycasting", |bm, addrs, pb, matches| {
             let algo = RaycastingAlgo;
-            run_single_benchmark(&algo, addrs, &bm.parking_lines, pb, matches, "Raycasting");
+            _run_single_benchmark(&algo, addrs, &bm.parking_lines, pb, matches, "Raycasting");
         }),
         ("Overlapping Chunks", |bm, addrs, pb, matches| {
             let algo = OverlappingChunksAlgo::new(&bm.parking_lines);
-            run_single_benchmark(
+            _run_single_benchmark(
                 &algo,
                 addrs,
                 &bm.parking_lines,
@@ -268,15 +268,15 @@ fn benchmark_selected_with_progress(
         }),
         ("R-Tree", |bm, addrs, pb, matches| {
             let algo = RTreeSpatialAlgo::new(&bm.parking_lines);
-            run_single_benchmark(&algo, addrs, &bm.parking_lines, pb, matches, "R-Tree");
+            _run_single_benchmark(&algo, addrs, &bm.parking_lines, pb, matches, "R-Tree");
         }),
         ("KD-Tree", |bm, addrs, pb, matches| {
             let algo = KDTreeSpatialAlgo::new(&bm.parking_lines);
-            run_single_benchmark(&algo, addrs, &bm.parking_lines, pb, matches, "KD-Tree");
+            _run_single_benchmark(&algo, addrs, &bm.parking_lines, pb, matches, "KD-Tree");
         }),
         ("Grid", |bm, addrs, pb, matches| {
             let algo = GridNearestAlgo::new(&bm.parking_lines);
-            run_single_benchmark(&algo, addrs, &bm.parking_lines, pb, matches, "Grid");
+            _run_single_benchmark(&algo, addrs, &bm.parking_lines, pb, matches, "Grid");
         }),
     ];
 
@@ -311,7 +311,7 @@ fn benchmark_selected_with_progress(
     results
 }
 
-fn run_single_benchmark<A: CorrelationAlgo + Sync>(
+fn _run_single_benchmark<A: CorrelationAlgo + Sync>(
     algo: &A,
     addresses: &[AdressClean],
     parking_lines: &[MiljoeDataClean],

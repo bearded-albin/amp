@@ -93,15 +93,15 @@ impl Theme {
     /// Create high-contrast theme for dark mode
     pub fn dark() -> Self {
         Self {
-            primary: Color::Cyan,           // Bright cyan
-            primary_dark: Color::Magenta,   // Bright magenta
-            secondary: Color::Yellow,       // Bright yellow
-            accent: Color::LightGreen,      // Bright green
-            error: Color::LightRed,         // Bright red
-            text: Color::White,             // Pure white text
-            text_muted: Color::Cyan,        // Cyan for muted (still bright)
-            text_inverse: Color::Black,     // Black text on bright backgrounds
-            bg: Color::Black,               // Pure black background
+            primary: Color::Cyan,         // Bright cyan
+            primary_dark: Color::Magenta, // Bright magenta
+            secondary: Color::Yellow,     // Bright yellow
+            accent: Color::LightGreen,    // Bright green
+            error: Color::LightRed,       // Bright red
+            text: Color::White,           // Pure white text
+            text_muted: Color::Cyan,      // Cyan for muted (still bright)
+            text_inverse: Color::Black,   // Black text on bright backgrounds
+            bg: Color::Black,             // Pure black background
             mode: Mode::Dark,
         }
     }
@@ -109,15 +109,15 @@ impl Theme {
     /// Create high-contrast theme for light mode
     pub fn light() -> Self {
         Self {
-            primary: Color::Blue,           // Bright blue
-            primary_dark: Color::Magenta,   // Bright magenta
+            primary: Color::Blue,                // Bright blue
+            primary_dark: Color::Magenta,        // Bright magenta
             secondary: Color::Rgb(184, 134, 11), // Dark gold/yellow for contrast
-            accent: Color::Green,           // Green
-            error: Color::Red,              // Dark red for contrast
-            text: Color::Black,             // Pure black text
-            text_muted: Color::Blue,        // Blue for muted (still visible)
-            text_inverse: Color::White,     // White on blue
-            bg: Color::White,               // Pure white background
+            accent: Color::Green,                // Green
+            error: Color::Red,                   // Dark red for contrast
+            text: Color::Black,                  // Pure black text
+            text_muted: Color::Blue,             // Blue for muted (still visible)
+            text_inverse: Color::White,          // White on blue
+            bg: Color::White,                    // Pure white background
             mode: Mode::Light,
         }
     }
@@ -150,7 +150,9 @@ impl Theme {
     }
 
     pub fn _text_muted(&self) -> Style {
-        Style::default().fg(self.text_muted).add_modifier(Modifier::DIM)
+        Style::default()
+            .fg(self.text_muted)
+            .add_modifier(Modifier::DIM)
     }
 
     pub fn accent(&self) -> Style {
@@ -160,9 +162,7 @@ impl Theme {
     }
 
     pub fn error(&self) -> Style {
-        Style::default()
-            .fg(self.error)
-            .add_modifier(Modifier::BOLD)
+        Style::default().fg(self.error).add_modifier(Modifier::BOLD)
     }
 
     pub fn warning(&self) -> Style {
@@ -190,7 +190,9 @@ impl Theme {
     }
 
     pub fn block(&self) -> Style {
-        Style::default().fg(self.primary).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(self.primary)
+            .add_modifier(Modifier::BOLD)
     }
 }
 

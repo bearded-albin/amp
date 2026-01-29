@@ -1,4 +1,4 @@
-use crate::countdown::{bucket_for, format_countdown, TimeBucket};
+use crate::countdown::{TimeBucket, bucket_for, format_countdown};
 use crate::ui::StoredAddress;
 use dioxus::prelude::*;
 
@@ -82,7 +82,7 @@ pub fn Active(addresses: Vec<StoredAddress>) -> Element {
                 }
             }
         }
-    }
+    };
 }
 
 /// Panel displaying addresses within 6 hours

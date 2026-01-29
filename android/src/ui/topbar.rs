@@ -11,9 +11,7 @@ pub fn TopBar(on_add_address: EventHandler<(String, String, String)>) -> Element
         let gatunummer = gatunummer_input.read().clone();
         let postnummer = postnummer_input.read().clone();
 
-        if !gata.trim().is_empty()
-            && !gatunummer.trim().is_empty()
-            && !postnummer.trim().is_empty()
+        if !gata.trim().is_empty() && !gatunummer.trim().is_empty() && !postnummer.trim().is_empty()
         {
             on_add_address.call((gata, gatunummer, postnummer));
             // Clear inputs after adding

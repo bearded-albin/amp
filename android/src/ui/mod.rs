@@ -49,7 +49,7 @@ impl StoredAddress {
 }
 
 /// Fuzzy match address against database with case-insensitive and whitespace-tolerant matching
-/// 
+///
 /// # TODO
 /// Better fuzzy matching algorithm (Levenshtein distance or similar)
 fn fuzzy_match_address(
@@ -60,7 +60,7 @@ fn fuzzy_match_address(
     // Try exact match first
     match match_address(gata, gatunummer, postnummer) {
         crate::matching::MatchResult::Valid(entry) => return Some(entry),
-        crate::matching::MatchResult::Invalid => {},
+        crate::matching::MatchResult::Invalid => {}
     }
 
     // TODO: Implement fuzzy matching
@@ -93,7 +93,8 @@ use crate::ui::{
 #[component]
 pub fn App() -> Element {
     let mut stored_addresses = use_signal::<Vec<StoredAddress>>(Vec::new);
-    let mut bucketed = use_signal::<HashMap<paneler::PanelBucket, Vec<StoredAddress>>>(HashMap::new);
+    let mut bucketed =
+        use_signal::<HashMap<paneler::PanelBucket, Vec<StoredAddress>>>(HashMap::new);
 
     // Update buckets whenever addresses change
     use_effect(move || {

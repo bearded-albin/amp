@@ -2,9 +2,71 @@ pub mod adresser;
 pub mod paneler;
 pub mod topbar;
 
+use crate::countdown::bucket_for;
+use crate::matching::match_address;
+use crate::static_data::StaticAddressEntry;
 use dioxus::prelude::*;
+use std::collections::HashMap;
 
 static CSS: Asset = asset!("/assets/style.css");
+
+/// Represents a locally stored address with validation and activation state
+#[derive(Clone, Debug, PartialEq)]
+pub struct StoredAddress {
+    /// Street name (e.g., "Storgatan")
+    pub gata: String,
+    /// Street number (e.g., "10")
+    pub gatunummer: String,
+    /// Postal code (e.g., "22100")
+    pub postnummer: String,
+    /// Whether this address matches the database
+    pub valid: bool,
+    /// Whether this address should be displayed in panels
+    pub active: bool,
+    /// The matched database entry (if valid)
+    pub matched_entry: Option<StaticAddressEntry>,
+}
+
+impl StoredAddress {
+    /// Create a new stored address and attempt to match against database
+    pub fn new(gata: String, gatunummer: String, postnummer: String) -> Self {
+        let fuzzy_match_result = fuzzy_match_address(&gata, &gatunummer, &postnummer);
+
+        let (valid, matched_entry) = match fuzzy_match_result {
+            Some(entry) => (true, Some(entry)),
+            None => (false, None),
+        };
+
+        StoredAddress {
+            gata,
+            gatunummer,
+            postnummer,
+            valid,
+            active: true, // New addresses are active by default
+            matched_entry,
+        }
+    }
+}
+
+/// Fuzzy match address against database with case-insensitive and whitespace-tolerant matching
+///
+/// # TODO
+/// Better fuzzy matching algorithm (Levenshtein distance or similar)
+fn fuzzy_match_address(
+    gata: &str,
+    gatunummer: &str,
+    postnummer: &str,
+) -> Option<StaticAddressEntry> {
+    // Try exact match first
+    match match_address(gata, gatunummer, postnummer) {
+        crate::matching::MatchResult::Valid(entry) => return Some(entry),
+        crate::matching::MatchResult::Invalid => {}
+    }
+
+    // TODO: Implement fuzzy matching
+    // For now, return None if exact match fails
+    None
+}
 
 use crate::ui::{
     adresser::Adresser,
@@ -14,36 +76,80 @@ use crate::ui::{
 
 #[component]
 pub fn App() -> Element {
-    // TopBar handles input, JavaScript populates the data containers
+    let mut stored_addresses = use_signal::<Vec<StoredAddress>>(Vec::new);
+
+    // Handle adding a new address
     let handle_add_address = move |args: (String, String, String)| {
         let (gata, gatunummer, postnummer) = args;
-        // TODO: Pass to JavaScript/Android layer to:
-        // 1. Validate against database
-        // 2. Add to storage
-        // 3. Update UI containers
-        eprintln!(
-            "Address added: {} {}, {}",
-            gata, gatunummer, postnummer
-        );
+        let new_addr = StoredAddress::new(gata, gatunummer, postnummer);
+
+        // Check if already exists
+        let mut addrs = stored_addresses.write();
+        if !addrs.iter().any(|a| {
+            a.gata == new_addr.gata
+                && a.gatunummer == new_addr.gatunummer
+                && a.postnummer == new_addr.postnummer
+        }) {
+            addrs.push(new_addr);
+        }
+
+        // TODO: Write addresses to Android persistent storage
+        // write_addresses_to_device(&addrs);
     };
+
+    // Handle toggling address active state
+    let handle_toggle_active = move |index: usize| {
+        let mut addrs = stored_addresses.write();
+        if let Some(addr) = addrs.get_mut(index) {
+            addr.active = !addr.active;
+        }
+        // TODO: Persist to Android storage
+        // write_addresses_to_device(&addrs);
+    };
+
+    // Handle removing an address
+    let handle_remove_address = move |index: usize| {
+        let mut addrs = stored_addresses.write();
+        if index < addrs.len() {
+            addrs.remove(index);
+        }
+        // TODO: Persist to Android storage
+        // write_addresses_to_device(&addrs);
+    };
+
+    let addresses = stored_addresses.read().clone();
 
     rsx! {
         Stylesheet { href: CSS }
         div {
             class: "app-wrapper",
             TopBar {
-                on_add_address,
+                on_add_address: handle_add_address,
             },
             div {
                 class: "app-container",
-                Adresser {},
+                Adresser {
+                    stored_addresses: addresses.clone(),
+                    on_toggle_active: handle_toggle_active,
+                    on_remove_address: handle_remove_address,
+                }
                 div {
                     class: "categories-section",
-                    Active {},
-                    Six {},
-                    Day {},
-                    Month {},
-                    NotValid {},
+                    Active {
+                        addresses: addresses.clone(),
+                    }
+                    Six {
+                        addresses: addresses.clone(),
+                    }
+                    Day {
+                        addresses: addresses.clone(),
+                    }
+                    Month {
+                        addresses: addresses.clone(),
+                    }
+                    NotValid {
+                        addresses: addresses.clone(),
+                    }
                 }
             }
         }

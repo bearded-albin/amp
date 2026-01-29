@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 #[component]
-pub fn TopBar(on_add_address: EventHandler<(String, String, String)>) -> Element {
+pub fn TopBar(mut on_add_address: EventHandler<(String, String, String)>) -> Element {
     let mut gata_input = use_signal(String::new);
     let mut gatunummer_input = use_signal(String::new);
     let mut postnummer_input = use_signal(String::new);
@@ -11,7 +11,9 @@ pub fn TopBar(on_add_address: EventHandler<(String, String, String)>) -> Element
         let gatunummer = gatunummer_input.read().clone();
         let postnummer = postnummer_input.read().clone();
 
-        if !gata.trim().is_empty() && !gatunummer.trim().is_empty() && !postnummer.trim().is_empty()
+        if !gata.trim().is_empty()
+            && !gatunummer.trim().is_empty()
+            && !postnummer.trim().is_empty()
         {
             on_add_address.call((gata, gatunummer, postnummer));
             // Clear inputs after adding
@@ -55,12 +57,12 @@ pub fn TopBar(on_add_address: EventHandler<(String, String, String)>) -> Element
                     button {
                         class: "btn btn-add",
                         onclick: handle_add_click,
-                        "\u{2795} Lägg till"
+                        "➕ Lägg till"
                     }
                     button {
                         class: "btn btn-gps",
                         onclick: handle_gps_click,
-                        "\u{1f4cd} Använd GPS"
+                        "📍 Använd GPS"
                     }
                 }
             }

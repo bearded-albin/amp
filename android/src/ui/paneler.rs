@@ -61,7 +61,7 @@ pub fn Active(addresses: Vec<StoredAddress>) -> Element {
             div { class: "category-content",
                 if active_count == 0 {
                     div { class: "empty-state",
-                        "Inga adresser kräver omedelbar uppmärksamhet"
+                        "Inga adresser"
                     }
                 } else {
                     div { class: "address-list",

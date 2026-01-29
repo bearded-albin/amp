@@ -1,5 +1,4 @@
-use crate::matching::{MatchResult, match_address, validate_input};
-use crate::static_data::StaticAddressEntry;
+use crate::ui::StoredAddress;
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -9,62 +8,13 @@ pub struct AddressInputState {
     pub postnummer: String,
 }
 
-#[derive(Clone, Debug)]
-pub enum ValidationStatus {
-    None,
-    Valid(StaticAddressEntry),
-    Invalid(String),
-}
-
 #[component]
-pub fn Adresser(on_add_valid_address: EventHandler<StaticAddressEntry>) -> Element {
+pub fn Adresser(
+    stored_addresses: Vec<StoredAddress>,
+    on_toggle_active: EventHandler<usize>,
+    on_remove_address: EventHandler<usize>,
+) -> Element {
     let mut input = use_signal(AddressInputState::default);
-    let mut validation_status = use_signal(|| ValidationStatus::None);
-
-    let handle_add = move |_| {
-        let current = input.read().clone();
-
-        // Validate input fields are not empty
-        if !validate_input(&current.gata, &current.gatunummer, &current.postnummer) {
-            validation_status.set(ValidationStatus::Invalid(
-                "Alla fält måste fyllas i".to_string(),
-            ));
-            return;
-        }
-
-        // Check against static correlations
-        let result = match_address(&current.gata, &current.gatunummer, &current.postnummer);
-
-        match result {
-            MatchResult::Valid(entry) => {
-                validation_status.set(ValidationStatus::Valid(entry.clone()));
-                // Call parent handler with validated address
-                on_add_valid_address.call(entry);
-                // Reset form
-                input.set(AddressInputState::default());
-            }
-            MatchResult::Invalid => {
-                validation_status.set(ValidationStatus::Invalid(
-                    "Adressen finns inte i systemet".to_string(),
-                ));
-            }
-        }
-    };
-
-    let status_display = match validation_status() {
-        ValidationStatus::None => rsx! { "" },
-        ValidationStatus::Valid(entry) => rsx! {
-            div { class: "validation-message success",
-                p { "✓ Adress hittad!" }
-                p { "Dag: {entry.dag}, Tid: {entry.tid}" }
-            }
-        },
-        ValidationStatus::Invalid(msg) => rsx! {
-            div { class: "validation-message error",
-                p { "✗ {msg}" }
-            }
-        },
-    };
 
     rsx! {
         div { class: "stored-addresses",
@@ -96,18 +46,43 @@ pub fn Adresser(on_add_valid_address: EventHandler<StaticAddressEntry>) -> Eleme
                             input.write().postnummer = evt.value();
                         },
                     }
-                    button {
-                        class: "add-button",
-                        onclick: handle_add,
-                        "+"
-                    }
                 }
-
-                // Validation feedback
-                {status_display}
             }
 
-            div { id: "addressList" }
+            div { id: "addressList",
+                {stored_addresses.iter().enumerate().map(|(idx, addr)| {
+                    let validation_indicator = if addr.valid {
+                        rsx! { span { class: "valid-indicator", "✓" } }
+                    } else {
+                        rsx! { span { class: "invalid-indicator", "✗" } }
+                    };
+
+                    let active_class = if addr.active { "active" } else { "inactive" };
+
+                    rsx! {
+                        div { key: "{idx}", class: "address-item {active_class}",
+                            div { class: "address-header",
+                                {validation_indicator}
+                                div { class: "address-text",
+                                    "{addr.gata} {addr.gatunummer}, {addr.postnummer}"
+                                }
+                            }
+                            div { class: "address-controls",
+                                button {
+                                    class: "toggle-button",
+                                    onclick: move |_| on_toggle_active.call(idx),
+                                    if addr.active { "Dölj" } else { "Visa" }
+                                }
+                                button {
+                                    class: "remove-button",
+                                    onclick: move |_| on_remove_address.call(idx),
+                                    "×"
+                                }
+                            }
+                        }
+                    }
+                })}
+            }
         }
     }
 }

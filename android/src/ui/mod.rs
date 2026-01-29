@@ -94,7 +94,7 @@ use crate::ui::{
 pub fn App() -> Element {
     let mut stored_addresses = use_signal::<Vec<StoredAddress>>(Vec::new);
     let mut bucketed =
-        use_signal::<HashMap<paneler::PanelBucket, Vec<StoredAddress>>>(HashMap::new);
+        use_signal::<HashMap<paneler::PanelBucket, Vec<StoredAddress>>>(HashMap::new());
 
     // Update buckets whenever addresses change
     use_effect(move || {
@@ -116,41 +116,51 @@ pub fn App() -> Element {
     });
 
     // Handle adding a new address
-    let handle_add_address = move |gata: String, gatunummer: String, postnummer: String| {
-        let new_addr = StoredAddress::new(gata, gatunummer, postnummer);
+    let handle_add_address: Callback<(String, String, String)> = {
+        let mut addresses = stored_addresses;
+        Callback::new(move |args: (String, String, String)| {
+            let (gata, gatunummer, postnummer) = args;
+            let new_addr = StoredAddress::new(gata, gatunummer, postnummer);
 
-        // Check if already exists
-        let mut addrs = stored_addresses.write();
-        if !addrs.iter().any(|a| {
-            a.gata == new_addr.gata
-                && a.gatunummer == new_addr.gatunummer
-                && a.postnummer == new_addr.postnummer
-        }) {
-            addrs.push(new_addr);
-        }
+            // Check if already exists
+            let mut addrs = addresses.write();
+            if !addrs.iter().any(|a| {
+                a.gata == new_addr.gata
+                    && a.gatunummer == new_addr.gatunummer
+                    && a.postnummer == new_addr.postnummer
+            }) {
+                addrs.push(new_addr);
+            }
 
-        // TODO: Write addresses to Android persistent storage
-        // write_addresses_to_device(&addrs);
+            // TODO: Write addresses to Android persistent storage
+            // write_addresses_to_device(&addrs);
+        })
     };
 
     // Handle toggling address active state
-    let handle_toggle_active = move |index: usize| {
-        let mut addrs = stored_addresses.write();
-        if let Some(addr) = addrs.get_mut(index) {
-            addr.active = !addr.active;
-        }
-        // TODO: Persist to Android storage
-        // write_addresses_to_device(&addrs);
+    let handle_toggle_active: Callback<usize> = {
+        let mut addresses = stored_addresses;
+        Callback::new(move |index: usize| {
+            let mut addrs = addresses.write();
+            if let Some(addr) = addrs.get_mut(index) {
+                addr.active = !addr.active;
+            }
+            // TODO: Persist to Android storage
+            // write_addresses_to_device(&addrs);
+        })
     };
 
     // Handle removing an address
-    let handle_remove_address = move |index: usize| {
-        let mut addrs = stored_addresses.write();
-        if index < addrs.len() {
-            addrs.remove(index);
-        }
-        // TODO: Persist to Android storage
-        // write_addresses_to_device(&addrs);
+    let handle_remove_address: Callback<usize> = {
+        let mut addresses = stored_addresses;
+        Callback::new(move |index: usize| {
+            let mut addrs = addresses.write();
+            if index < addrs.len() {
+                addrs.remove(index);
+            }
+            // TODO: Persist to Android storage
+            // write_addresses_to_device(&addrs);
+        })
     };
 
     // TODO: Read addresses from Android persistent storage on app start

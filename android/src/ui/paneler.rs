@@ -60,29 +60,26 @@ pub fn Active(addresses: Vec<StoredAddress>) -> Element {
             div { class: "category-title", "Städas nu" }
             div { class: "category-content",
                 if active_count == 0 {
-                    rsx! {
-                        div { class: "empty-state",
-                            "Inga adresser kräver omedelbar uppmärksamhet"
-                        }
+                    div { class: "empty-state",
+                        "Inga adresser kräver omedelbar uppmärksamhet"
                     }
                 } else {
-                    rsx! {
-                        div { class: "address-list",
-                            {active_addrs.into_iter().enumerate().map(|(i, addr)| {
-                                rsx! {
-                                    AddressItem {
-                                        addr: addr.clone(),
-                                        index: i,
-                                        on_remove: move |_| { /* TODO: wire to parent */ },
-                                    }
+                    div { class: "address-list",
+                        {active_addrs.into_iter().enumerate().map(|(i, addr)| {
+                            rsx! {
+                                AddressItem {
+                                    key: "{i}",
+                                    addr: addr.clone(),
+                                    index: i,
+                                    on_remove: move |_| { /* TODO: wire to parent */ },
                                 }
-                            })}
-                        }
+                            }
+                        })}
                     }
                 }
             }
         }
-    };
+    }
 }
 
 /// Panel displaying addresses within 6 hours
@@ -107,24 +104,21 @@ pub fn Six(addresses: Vec<StoredAddress>) -> Element {
             div { class: "category-title", "Inom 6 timmar" }
             div { class: "category-content",
                 if count == 0 {
-                    rsx! {
-                        div { class: "empty-state",
-                            "Inga adresser"
-                        }
+                    div { class: "empty-state",
+                        "Inga adresser"
                     }
                 } else {
-                    rsx! {
-                        div { class: "address-list",
-                            {addrs.into_iter().enumerate().map(|(i, addr)| {
-                                rsx! {
-                                    AddressItem {
-                                        addr: addr.clone(),
-                                        index: i,
-                                        on_remove: move |_| { /* TODO: wire to parent */ },
-                                    }
+                    div { class: "address-list",
+                        {addrs.into_iter().enumerate().map(|(i, addr)| {
+                            rsx! {
+                                AddressItem {
+                                    key: "{i}",
+                                    addr: addr.clone(),
+                                    index: i,
+                                    on_remove: move |_| { /* TODO: wire to parent */ },
                                 }
-                            })}
-                        }
+                            }
+                        })}
                     }
                 }
             }
@@ -154,24 +148,21 @@ pub fn Day(addresses: Vec<StoredAddress>) -> Element {
             div { class: "category-title", "Inom 1 dag" }
             div { class: "category-content",
                 if count == 0 {
-                    rsx! {
-                        div { class: "empty-state",
-                            "Inga adresser"
-                        }
+                    div { class: "empty-state",
+                        "Inga adresser"
                     }
                 } else {
-                    rsx! {
-                        div { class: "address-list",
-                            {addrs.into_iter().enumerate().map(|(i, addr)| {
-                                rsx! {
-                                    AddressItem {
-                                        addr: addr.clone(),
-                                        index: i,
-                                        on_remove: move |_| { /* TODO: wire to parent */ },
-                                    }
+                    div { class: "address-list",
+                        {addrs.into_iter().enumerate().map(|(i, addr)| {
+                            rsx! {
+                                AddressItem {
+                                    key: "{i}",
+                                    addr: addr.clone(),
+                                    index: i,
+                                    on_remove: move |_| { /* TODO: wire to parent */ },
                                 }
-                            })}
-                        }
+                            }
+                        })}
                     }
                 }
             }
@@ -201,24 +192,21 @@ pub fn Month(addresses: Vec<StoredAddress>) -> Element {
             div { class: "category-title", "Inom 1 månad" }
             div { class: "category-content",
                 if count == 0 {
-                    rsx! {
-                        div { class: "empty-state",
-                            "Inga adresser"
-                        }
+                    div { class: "empty-state",
+                        "Inga adresser"
                     }
                 } else {
-                    rsx! {
-                        div { class: "address-list",
-                            {addrs.into_iter().enumerate().map(|(i, addr)| {
-                                rsx! {
-                                    AddressItem {
-                                        addr: addr.clone(),
-                                        index: i,
-                                        on_remove: move |_| { /* TODO: wire to parent */ },
-                                    }
+                    div { class: "address-list",
+                        {addrs.into_iter().enumerate().map(|(i, addr)| {
+                            rsx! {
+                                AddressItem {
+                                    key: "{i}",
+                                    addr: addr.clone(),
+                                    index: i,
+                                    on_remove: move |_| { /* TODO: wire to parent */ },
                                 }
-                            })}
-                        }
+                            }
+                        })}
                     }
                 }
             }
@@ -241,24 +229,21 @@ pub fn NotValid(addresses: Vec<StoredAddress>) -> Element {
             div { class: "category-title", "Ingen städning" }
             div { class: "category-content",
                 if count == 0 {
-                    rsx! {
-                        div { class: "empty-state",
-                            "Inga adresser"
-                        }
+                    div { class: "empty-state",
+                        "Inga adresser"
                     }
                 } else {
-                    rsx! {
-                        div { class: "address-list",
-                            {addrs.into_iter().enumerate().map(|(i, addr)| {
-                                rsx! {
-                                    AddressItem {
-                                        addr: addr.clone(),
-                                        index: i,
-                                        on_remove: move |_| { /* TODO: wire to parent */ },
-                                    }
+                    div { class: "address-list",
+                        {addrs.into_iter().enumerate().map(|(i, addr)| {
+                            rsx! {
+                                AddressItem {
+                                    key: "{i}",
+                                    addr: addr.clone(),
+                                    index: i,
+                                    on_remove: move |_| { /* TODO: wire to parent */ },
                                 }
-                            })}
-                        }
+                            }
+                        })}
                     }
                 }
             }
